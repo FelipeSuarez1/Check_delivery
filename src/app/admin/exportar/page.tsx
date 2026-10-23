@@ -81,6 +81,7 @@ export default async function ExportarPage({ searchParams }: { searchParams: Pro
     const p = new URLSearchParams({ de, ate });
     if (filtro?.torre) p.set("torre", filtro.torre);
     if (filtro?.status) p.set("status", filtro.status);
+    if (filtro?.apto) p.set("apto", filtro.apto);
     return `/admin/exportar?${p.toString()}`;
   };
 
@@ -109,7 +110,7 @@ export default async function ExportarPage({ searchParams }: { searchParams: Pro
         </nav>
 
         <form method="get" action="/admin/exportar" className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <div className="space-y-1.5">
               <Label htmlFor="exp-de" className={ROTULO_CAMPO}>
                 De (recebida a partir de)
@@ -144,6 +145,19 @@ export default async function ExportarPage({ searchParams }: { searchParams: Pro
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="exp-apto" className={ROTULO_CAMPO}>
+                Apartamento <span className="font-normal text-ink-3">(opcional)</span>
+              </Label>
+              <Input
+                id="exp-apto"
+                name="apto"
+                placeholder="ex.: 11A"
+                defaultValue={valor("apto").toUpperCase()}
+                className={`${CAMPO} uppercase`}
+                autoComplete="off"
+              />
             </div>
           </div>
 

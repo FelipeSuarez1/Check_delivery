@@ -38,6 +38,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
   formatDetection: { telephone: false },
   appleWebApp: { capable: true, title: "Encomendas", statusBarStyle: "default" },
+  // iOS < 16.4 só respeita a meta antiga; o Next emite apenas mobile-web-app-capable
+  other: { "apple-mobile-web-app-capable": "yes" },
   icons: {
     icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
     apple: "/icons/apple-touch-icon.png",

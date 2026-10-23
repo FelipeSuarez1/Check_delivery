@@ -559,6 +559,8 @@ export type FiltroExportacao = {
   ate: string | null;
   torre: "A" | "B" | null;
   status: StatusEncomenda | null;
+  /** número do apartamento ("11A") — vence a torre; null = todos */
+  apto: string | null;
 };
 
 type EntradaParams = Record<string, string | string[] | undefined> | URLSearchParams;
@@ -581,12 +583,14 @@ export function lerFiltroExportacao(
   const ate = lerParam(params, "ate");
   const torre = lerParam(params, "torre").toUpperCase();
   const status = lerParam(params, "status").toLowerCase();
+  const apto = lerParam(params, "apto").toUpperCase();
 
   if (de && !inicioDoDiaDeTexto(de)) return { ok: false, erro: "Data inicial inválida — use AAAA-MM-DD" };
   if (ate && !inicioDoDiaDeTexto(ate)) return { ok: false, erro: "Data final inválida — use AAAA-MM-DD" };
   if (de && ate && de > ate) return { ok: false, erro: "A data inicial é posterior à final" };
   if (torre && torre !== "A" && torre !== "B") return { ok: false, erro: "Torre inválida — use A ou B" };
   if (status && !ehStatus(status)) return { ok: false, erro: `Status inválido — use ${STATUS.join(", ")}` };
+  if (apto && !/^\d{1,3}[AB]$/.test(apto)) return { ok: false, erro: "Apartamento inválido — use o número com a torre, ex.: 11A" };
 
   return {
     ok: true,
@@ -595,6 +599,7 @@ export function lerFiltroExportacao(
       ate: ate || null,
       torre: torre === "A" || torre === "B" ? torre : null,
       status: status && ehStatus(status) ? status : null,
+      apto: apto || null,
     },
   };
 }
@@ -606,7 +611,11 @@ function whereExportacao(f: FiltroExportacao): Prisma.EncomendaWhereInput {
   if (periodo.ate) recebidaEm.lt = new Date(periodo.ate);
   return {
     ...(Object.keys(recebidaEm).length > 0 ? { recebidaEm } : {}),
-    ...(f.torre ? { apartamento: { torre: f.torre } } : {}),
+    ...(f.apto
+      ? { apartamento: { numero: f.apto } }
+      : f.torre
+        ? { apartamento: { torre: f.torre } }
+        : {}),
     ...(f.status ? { status: f.status } : {}),
   };
 }
@@ -674,7 +683,7 @@ export function montarCsvDeExportacao(linhas: readonly LinhaExportacao[]): strin
 
 /** encomendas-<de>-<ate>.csv; ponta aberta: "inicio" / data de hoje. Só caracteres seguros. */
 export function nomeArquivoCsv(f: FiltroExportacao, agora = new Date()): string {
-  return `encomendas-${f.de ?? "inicio"}-${f.ate ?? diaLocalISO(agora)}.csv`;
+  return `encomendas${f.apto ? `-${f.apto}` : ""}-${f.de ?? "inicio"}-${f.ate ?? diaLocalISO(agora)}.csv`;
 }
 
 /** Resumo do filtro para o log/tela: "de 2026-10-01 até 2026-10-22 · torre A · status entregue". */
@@ -682,7 +691,7 @@ export function descreverFiltro(f: FiltroExportacao): string {
   return [
     f.de ? `de ${f.de}` : "desde o início",
     f.ate ? `até ${f.ate}` : "até hoje",
-    f.torre ? `torre ${f.torre}` : "todas as torres",
+    f.apto ? `apto ${f.apto}` : f.torre ? `torre ${f.torre}` : "todas as torres",
     f.status ? `status ${f.status}` : "todos os status",
   ].join(" · ");
 }

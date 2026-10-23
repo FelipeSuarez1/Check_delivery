@@ -73,7 +73,9 @@ worker que cacheia SÓ assets estáticos, nunca página nem dado).
 - `FotoEncomenda` (encomendaId, arquivo, ordem, apagadaEm?) — arquivo em
   `uploads/encomendas/` (FORA de /public), nome gerado no servidor.
 - `LogEvento` (usuarioId?, usuarioNome, papel, tipo, rota, detalhe) — toda
-  escrita gera um evento: é o "livro" auditável.
+  escrita gera um evento: é o "livro" auditável. Tipos: login · logout ·
+  encomenda · retirada · cancelamento · turno · usuario · cadastro ·
+  exportacao · erro · feedback.
 - `PushInscricao` — fase 4 (já no schema, sem uso).
 
 ## 4. Papéis e rotas (allowlist no middleware — fora dela = 404)
@@ -82,7 +84,7 @@ worker que cacheia SÓ assets estáticos, nunca página nem dado).
 |---|---|---|
 | `portaria` | `/portaria`, `/portaria/registrar`, `/portaria/retirada`, `/portaria/historico`, `/portaria/historico/[apto]`, `/portaria/turno`, `/etiqueta/[codigo]` | `/portaria` |
 | `morador` | `/app`, `/app/encomenda/[codigo]`, `/app/historico`, `/app/conta` | `/app` |
-| `admin` | tudo acima + `/admin`, `/admin/moradores`, `/admin/porteiros`, `/admin/usuarios`, `/admin/exportar`, `/admin/logs` | `/admin` |
+| `admin` | tudo acima + `/admin`, `/admin/moradores`, `/admin/porteiros`, `/admin/usuarios`, `/admin/exportar` (+ `GET /admin/exportar/csv?de=&ate=&torre=&status=&apto=`), `/admin/logs` | `/admin` |
 | todos logados | `/fotos/[id]` (checa o apto do morador), `/conta/senha` | — |
 | públicas | `/login`, `/manifest.webmanifest`, `/sw.js`, `/icons/*` | — |
 
@@ -96,7 +98,7 @@ Fonte única dos papéis/allowlist: `src/lib/papeis.ts`. Guardas em
 - `gerarCodigo(): Promise<string>` — único, alfabeto sem ambíguos.
 - `listarAguardando(filtro?: { torre?: "A"|"B"; apartamentoId?: number; busca?: string })`
 - `listarHistoricoApartamento(apartamentoId, periodo?)` e `listarHistoricoGeral(periodo, filtros)`
-- `buscarPorCodigo(codigo)` · `encomendaParaMorador(id, apartamentoIdDaSessao)` (null se não for do apto)
+- `buscarPorCodigo(codigo)` · `buscarPorId(id)` · `encomendaParaMorador(id, apartamentoIdDaSessao)` / `encomendaParaMoradorPorCodigo(codigo, apto)` (null se não for do apto) · `listarDoApartamento(aptoId)` · `resumoPortaria()` · `listarApartamentosComMoradores()` · `buscarParaRetirada(codigo)`
 - `diasParada(encomenda): number` · `PARADA_DIAS = 3`
 - `mensagemWhatsApp(encomenda): string` e `linkWhatsApp(telefone, mensagem): string` (DDI 55 assumido)
 
@@ -105,6 +107,9 @@ Fonte única dos papéis/allowlist: `src/lib/papeis.ts`. Guardas em
 - `confirmarRetirada({ codigo, retiradaPorMoradorId? , terceiroNome?, terceiroDoc? })`
 - `cancelarEncomenda({ id, motivo })` — portaria só no turno em que foi registrada; admin sempre
 - `marcarAvisoWhatsApp({ id })` → `{ ok, link }`
+- `buscarEncomendaParaRetirada(codigo)` (leitura, guarda portaria|admin)
+
+Admin: `src/actions/admin-cadastros.ts` (moradores/porteiros) e `src/actions/admin-usuarios.ts` (usuários: criar/editar/redefinir senha/desativar/excluir/gerar logins faltantes — senha gerada aparece UMA vez); consultas em `src/lib/admin.ts`. Constantes sem Prisma (p/ client) em `src/lib/encomenda-constantes.ts`; regras de escrita em `src/lib/encomendas-escrita.ts` e `src/lib/turno.ts` (as actions só fazem guarda → zod → lib → log → revalidate).
 
 `src/actions/turno.ts`: `iniciarTurno({ porteiroId })`, `encerrarTurno()`, `turnoAberto()`.
 `src/actions/conta.ts`: `trocarSenha({ atual, nova })` (qualquer papel; reemite cookie).
@@ -148,6 +153,10 @@ próprios em `src/components/`: `CodigoEncomenda` (mono grande), `StampStatus`
 - Contas de teste: `scripts/cria-usuarios-teste.ts <senha>` / `--remover`.
 
 ## 9. Operação (quando publicar)
+
+Runbook completo em `docs/operacao.md`. ⚠️ `next dev` trava um único servidor
+por pasta (lock em `.next/dev`) e `npm run build` derruba um `next start` da
+mesma `.next` — testes paralelos usam CÓPIA da pasta + cópia do banco.
 
 Servidor = máquina do Aquiles, porta **3001**, túnel Cloudflare com ingress
 `encomendas.tangaracondominio.com.br` (sem Access). Backup diário `VACUUM INTO`.

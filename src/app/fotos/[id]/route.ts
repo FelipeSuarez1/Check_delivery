@@ -61,7 +61,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       "Content-Type": tipo,
       "Content-Length": String(bytes.length),
       "Content-Disposition": "inline",
-      "Cache-Control": "private, max-age=3600",
+      "Cache-Control": "private, no-store", // tablet da portaria é compartilhado: foto não fica no cache após logout
       Vary: "Cookie",
       "X-Content-Type-Options": "nosniff",
       "Cross-Origin-Resource-Policy": "same-origin",
