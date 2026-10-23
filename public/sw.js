@@ -7,6 +7,15 @@
  * (/_next/static, com hash no nome) e os ícones.
  */
 const CACHE = "encomendas-estatico-v1";
+// Cada publicação traz arquivos novos em /_next/static (nome com hash) e os das
+// versões antigas nunca mais são pedidos: guarda só os mais recentes para o
+// cache não crescer a cada atualização do app.
+const MAX_ENTRADAS = 150;
+
+async function limitar(cache) {
+  const chaves = await cache.keys(); // ordem de inserção: as mais antigas primeiro
+  await Promise.all(chaves.slice(0, Math.max(0, chaves.length - MAX_ENTRADAS)).map((c) => cache.delete(c)));
+}
 
 self.addEventListener("install", () => self.skipWaiting());
 
@@ -37,7 +46,9 @@ self.addEventListener("fetch", (evento) => {
         const guardado = await cache.match(req);
         if (guardado) return guardado;
         const resposta = await fetch(req);
-        if (resposta.ok) cache.put(req, resposta.clone());
+        if (resposta.ok) {
+          evento.waitUntil(cache.put(req, resposta.clone()).then(() => limitar(cache)));
+        }
         return resposta;
       }
       // ícones mantêm o nome ao mudar: rede primeiro, cache só se estiver offline

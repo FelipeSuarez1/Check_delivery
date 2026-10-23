@@ -13,7 +13,7 @@ export function ShellAdmin({ nome, children }: { nome: string; children: React.R
     <div data-shell="admin" className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-30 border-b border-line bg-card">
         <div className="mx-auto flex w-full max-w-[1280px] flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 md:px-6">
-          <Link href="/admin" className="flex items-center gap-2.5" aria-label="Administração — Espaço Tangará">
+          <Link href="/admin" className="flex min-h-11 items-center gap-2.5" aria-label="Administração — Espaço Tangará">
             <span className="flex size-[38px] items-center justify-center rounded-[10px] bg-ink text-white">
               <Package className="size-5" aria-hidden />
             </span>

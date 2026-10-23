@@ -26,7 +26,11 @@ import {
   registrarEncomendaDominio,
   retirarEncomendaDominio,
 } from "@/lib/encomendas-escrita";
-import { prepararAviso } from "@/lib/encomendas";
+import {
+  buscarParaRetirada as buscarParaRetiradaDominio,
+  prepararAviso,
+  type BuscaParaRetirada,
+} from "@/lib/encomendas";
 import { ErroDominio } from "@/lib/erro-dominio";
 import { registrarEvento } from "@/lib/log";
 import type { SessaoPayload } from "@/lib/sessao-token";
@@ -82,7 +86,10 @@ function revalidarEncomendas(): void {
   for (const rota of ["/portaria", "/portaria/historico", "/app", "/app/historico", "/admin"]) {
     revalidatePath(rota);
   }
+  // os contadores do cabeçalho (Aguardando / Entregues hoje) moram no LAYOUT da portaria
+  revalidatePath("/portaria", "layout");
   revalidatePath("/portaria/historico/[apto]", "page");
+  revalidatePath("/portaria/encomenda/[id]", "page");
   revalidatePath("/app/encomenda/[codigo]", "page");
 }
 
@@ -241,8 +248,10 @@ export async function confirmarRetirada(entrada: {
       `Retirada ${r.codigo} · ${r.apartamento} · retirou ${r.retiradaPor}${r.terceiro ? ` (terceiro${doc})` : ""} · entregue por ${r.entreguePorNome}`
     );
     revalidatePath("/portaria");
+    revalidatePath("/portaria", "layout");
     revalidatePath("/portaria/historico");
     revalidatePath("/portaria/historico/[apto]", "page");
+    revalidatePath("/portaria/encomenda/[id]", "page");
     revalidatePath("/app");
     revalidatePath("/app/historico");
     revalidatePath("/app/encomenda/[codigo]", "page");
@@ -301,9 +310,25 @@ export async function marcarAvisoWhatsApp(entrada: { id: number }): Promise<Resu
     if (!aviso.ok) return { ok: false, link: null, erro: aviso.erro };
     await registrarEvento(sessao, "encomenda", rota, `Aviso por WhatsApp aberto para ${aviso.paraNome} (encomenda ${aviso.codigo})`);
     revalidatePath("/portaria");
+    revalidatePath("/portaria/encomenda/[id]", "page");
     revalidatePath("/admin");
     return { ok: true, link: aviso.link };
   } catch (e) {
     return { ok: false, link: null, erro: await erroParaUsuario(e, sessao, rota, "marcarAvisoWhatsApp") };
+  }
+}
+
+/**
+ * Leitura da tela de retirada: encomenda aguardando do `codigo` + moradores do
+ * apto. Código inexistente / já entregue / cancelado → só a mensagem (sem dados).
+ */
+export async function buscarEncomendaParaRetirada(codigo: string): Promise<BuscaParaRetirada> {
+  const g = await guarda();
+  if ("erro" in g) return { ok: false, erro: g.erro };
+  if (typeof codigo !== "string" || codigo.length > 40) return { ok: false, erro: "Código inválido" };
+  try {
+    return await buscarParaRetiradaDominio(codigo);
+  } catch (e) {
+    return { ok: false, erro: await erroParaUsuario(e, g.sessao, "/portaria/retirada", "buscarEncomendaParaRetirada") };
   }
 }

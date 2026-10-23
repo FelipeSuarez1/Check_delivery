@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, LoaderCircle, TriangleAlert, UserRound } from "lucide-react";
@@ -17,6 +17,17 @@ const FUSO = "America/Sao_Paulo";
 // sessão de 30 dias vencida com a tela aberta (o middleware devolve o login).
 const MSG_FALHA_DE_REDE =
   "Não foi possível concluir. Recarregue a página e tente de novo (a sessão pode ter expirado).";
+
+const EVENTO_ABRIR = "portaria:abrir-dialogo-turno";
+
+/**
+ * Abre o diálogo de turno do cabeçalho a partir de QUALQUER tela da portaria
+ * (faixa "Abra o turno…", botão Salvar sem turno, página /portaria/turno). O
+ * diálogo vive uma vez só no layout; isto só avisa por evento da janela.
+ */
+export function abrirDialogoTurno(): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVENTO_ABRIR));
+}
 
 /** "14:00" no fuso de Brasília — mesmo texto no servidor e no cliente. */
 function horaDe(iso: string): string {
@@ -42,6 +53,12 @@ export function TurnoDialog({ turno, porteiros }: { turno: TurnoAberto | null; p
   const [pendente, iniciar] = useTransition();
   const router = useRouter();
   const ehAdmin = useEhAdmin();
+
+  useEffect(() => {
+    const abrir = () => setAberto(true);
+    window.addEventListener(EVENTO_ABRIR, abrir);
+    return () => window.removeEventListener(EVENTO_ABRIR, abrir);
+  }, []);
 
   function fechar(valor: boolean) {
     if (pendente) return;
@@ -196,6 +213,14 @@ export function TurnoDialog({ turno, porteiros }: { turno: TurnoAberto | null; p
               Encerrar turno
             </button>
           )}
+
+          <Link
+            href="/portaria/turno"
+            onClick={() => setAberto(false)}
+            className="-mb-1 inline-flex h-11 items-center justify-center rounded-[10px] text-sm font-semibold text-ink-2 underline-offset-4 hover:text-ink hover:underline"
+          >
+            Ver os últimos turnos
+          </Link>
         </DialogContent>
       </Dialog>
     </>

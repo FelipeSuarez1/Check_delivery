@@ -11,7 +11,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { gerarCodigoCandidato, validarCodigo } from "@/lib/codigo";
-import { DIA_MS, inicioDoDiaLocal, type Periodo } from "@/lib/datas";
+import { DIA_MS, formatarDataHora, inicioDoDiaLocal, type Periodo } from "@/lib/datas";
 import {
   PARADA_DIAS,
   diasParada as calcularDiasParada,
@@ -22,6 +22,7 @@ import {
   type TipoEncomenda,
 } from "@/lib/encomenda-constantes";
 import { linkWhatsApp, mensagemWhatsApp } from "@/lib/whatsapp";
+import { correspondeBusca } from "@/lib/busca-encomenda";
 
 export {
   FOTOS_MAX,
@@ -42,6 +43,8 @@ export type { StatusEncomenda, TipoEncomenda } from "@/lib/encomenda-constantes"
 // contrato do CLAUDE.md lista estas duas em encomendas.ts; a implementacao fica em whatsapp.ts
 export { linkWhatsApp, mensagemWhatsApp } from "@/lib/whatsapp";
 export type { Periodo } from "@/lib/datas";
+// a busca vive em busca-encomenda.ts (pura) para as telas client poderem filtrar listas sem puxar o Prisma
+export { correspondeBusca } from "@/lib/busca-encomenda";
 
 /* ------------------------------------------------------------------ tipos */
 
@@ -170,30 +173,6 @@ function wherePeriodo(p?: Periodo): Prisma.EncomendaWhereInput {
   if (de && !Number.isNaN(de.getTime())) filtro.gte = de;
   if (ate && !Number.isNaN(ate.getTime())) filtro.lt = ate;
   return Object.keys(filtro).length > 0 ? { recebidaEm: filtro } : {};
-}
-
-const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-
-/**
- * Busca da portaria: cada palavra precisa casar (E). Casa com código (aceita
- * "k7-m3"), apto (exato: "11a" ou "11" para 11A/11B, nunca 111A), destinatário,
- * transportadora, local, observação, quem retirou e o tipo. Sem acento/caixa.
- */
-export function correspondeBusca(e: EncomendaResumo, busca: string | undefined | null): boolean {
-  const termos = semAcento(busca ?? "").split(/\s+/).filter(Boolean);
-  if (termos.length === 0) return true;
-  const apto = e.apartamento.toLowerCase();
-  const codigo = e.codigo.toLowerCase();
-  const textos = [e.destinatarioNome, e.transportadora, e.local, e.observacao, e.retiradaPor, e.tipoRotulo]
-    .filter((x): x is string => !!x)
-    .map(semAcento);
-  return termos.every((t) => {
-    if (/^\d+[a-z]$/.test(t) && apto === t) return true;
-    if (/^\d+$/.test(t) && apto.slice(0, -1) === t) return true;
-    const semHifen = t.replace(/[-_]/g, "");
-    if (semHifen && codigo.includes(semHifen)) return true;
-    return textos.some((x) => x.includes(t));
-  });
 }
 
 async function consultar(
@@ -395,6 +374,61 @@ export async function listarMoradoresDoApartamento(apartamentoId: number): Promi
     nome: m.nome,
     temTelefone: !!m.telefone && m.telefone.replace(/\D/g, "").length >= 10,
   }));
+}
+
+export type ApartamentoComMoradores = ApartamentoInfo & { moradores: { id: number; nome: string }[] };
+
+/**
+ * Todos os aptos ativos com os moradores ativos (só id e nome — sem telefone).
+ * A tela de registro carrega isso UMA vez e troca os chips "Para quem?" sem ir
+ * ao servidor a cada apartamento digitado (52 aptos, ~100 nomes).
+ */
+export async function listarApartamentosComMoradores(): Promise<ApartamentoComMoradores[]> {
+  const aptos = await prisma.apartamento.findMany({
+    where: { ativo: true },
+    orderBy: [{ torre: "asc" }, { andar: "asc" }],
+    select: {
+      id: true,
+      numero: true,
+      torre: true,
+      andar: true,
+      moradores: {
+        where: { ativo: true },
+        orderBy: [{ nome: "asc" }, { id: "asc" }],
+        select: { id: true, nome: true },
+      },
+    },
+  });
+  return aptos.map((a) => ({ ...a, torre: a.torre === "B" ? "B" : "A" }));
+}
+
+export type BuscaParaRetirada =
+  | { ok: true; encomenda: EncomendaDetalhe; moradores: MoradorInfo[] }
+  | { ok: false; erro: string };
+
+/**
+ * Tela de retirada: acha a encomenda `aguardando` do código e os moradores do
+ * apto (chips "Quem está retirando?"). Código inexistente, já entregue ou
+ * cancelado devolve SÓ uma mensagem — nunca dados da encomenda.
+ */
+export async function buscarParaRetirada(codigo: string): Promise<BuscaParaRetirada> {
+  const v = validarCodigo(codigo);
+  if (!v.ok) return { ok: false, erro: v.erro };
+  const e = await buscarPorCodigo(v.codigo);
+  if (!e) return { ok: false, erro: `Código ${v.codigo} não encontrado. Confira a etiqueta ou o celular do morador.` };
+  if (e.status === "entregue") {
+    return {
+      ok: false,
+      erro: `O código ${e.codigo} já foi entregue${e.entregueEm ? ` (${formatarDataHora(e.entregueEm)})` : ""}.`,
+    };
+  }
+  if (e.status === "cancelada") {
+    return {
+      ok: false,
+      erro: `O código ${e.codigo} foi cancelado${e.canceladaMotivo ? ` (${e.canceladaMotivo})` : ""}.`,
+    };
+  }
+  return { ok: true, encomenda: e, moradores: await listarMoradoresDoApartamento(e.apartamentoId) };
 }
 
 /* --------------------------------------------------------------- WhatsApp */

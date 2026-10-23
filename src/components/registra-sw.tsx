@@ -22,7 +22,8 @@ export function RegistraSW() {
     }
     // não atrapalha o primeiro pintar da tela
     const id = window.setTimeout(() => {
-      navigator.serviceWorker.register("/sw.js").catch(() => {
+      // updateViaCache "none": o navegador sempre confere se o sw.js mudou
+      navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" }).catch(() => {
         /* sem service worker o app funciona igual, só não instala */
       });
     }, 1500);
