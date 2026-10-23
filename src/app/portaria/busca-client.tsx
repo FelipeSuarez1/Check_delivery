@@ -78,7 +78,7 @@ export function BuscaPortaria({ className }: { className?: string }) {
         autoCorrect="off"
         spellCheck={false}
         maxLength={60}
-        placeholder="buscar por apto, nome ou código"
+        placeholder="apto, nome ou código"
         className="h-12 w-full rounded-[10px] border border-line bg-card pl-11 pr-11 text-[15px] outline-none placeholder:text-ink-3 focus-visible:border-kraft focus-visible:ring-3 focus-visible:ring-kraft/30 [&::-webkit-search-cancel-button]:hidden"
       />
       {valor && (

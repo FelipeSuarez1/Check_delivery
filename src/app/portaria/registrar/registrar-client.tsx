@@ -248,7 +248,7 @@ function Formulario({
                     </button>
                   ))}
                 </div>
-                <div className="flex h-[52px] min-w-[128px] flex-1 items-center gap-2 rounded-[10px] border border-input bg-card px-3.5 focus-within:border-kraft focus-within:ring-3 focus-within:ring-kraft/30">
+                <div className="flex h-[52px] min-w-[176px] flex-1 items-center gap-2 rounded-[10px] border border-input bg-card px-3.5 focus-within:border-kraft focus-within:ring-3 focus-within:ring-kraft/30">
                   <input
                     ref={numeroRef}
                     id="numero-apto"

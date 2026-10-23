@@ -186,7 +186,7 @@ async function main(): Promise<void> {
 type Ambiente = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 async function executarFluxos(e: Ambiente): Promise<void> {
-  const { prisma, act, tur, rotaFoto, aptoA, ana, rui, porteiro, tPort, tAdmin, tMorA, tMorB } = e;
+  const { prisma, act, tur, rotaFoto, aptoA, ana, porteiro, tPort, tAdmin, tMorA, tMorB } = e;
   const registrar = (fd: FormData) => act.registrarEncomenda(fd);
   const contar = () => prisma.encomenda.count({ where: { apartamentoId: aptoA.id } });
   const base = { apartamentoId: String(aptoA.id), destinatarioMoradorId: String(ana.id), tipo: "caixa" };
@@ -237,7 +237,7 @@ async function executarFluxos(e: Ambiente): Promise<void> {
   const resp = await pedir(String(fotos[0].id), tPort);
   const bytes = new Uint8Array(await resp.arrayBuffer());
   ok(resp.status === 200 && resp.headers.get("content-type") === "image/png" && bytes[0] === 0x89, "portaria recebe a imagem (200, image/png)");
-  ok(resp.headers.get("x-content-type-options") === "nosniff" && resp.headers.get("cache-control") === "private, max-age=3600", "cabecalhos nosniff e cache privado");
+  ok(resp.headers.get("x-content-type-options") === "nosniff" && resp.headers.get("cache-control") === "private, no-store", "cabecalhos nosniff e sem cache (aparelho compartilhado)");
   ok((await pedir(String(fotos[0].id), tAdmin)).status === 200, "admin recebe a foto");
   ok((await pedir(String(fotos[0].id), tMorA)).status === 200, "morador do MESMO apto recebe a foto");
   ok((await pedir(String(fotos[0].id), tMorB)).status === 404, "morador de OUTRO apto: 404 (nunca 403)");
