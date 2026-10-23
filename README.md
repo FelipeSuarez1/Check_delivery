@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Encomendas Tangará
 
-## Getting Started
+Controle de encomendas da portaria do Condomínio Espaço Tangará (PWA). O porteiro
+registra cada volume com foto e apartamento, o sistema gera um código de 4
+caracteres e os moradores veem as encomendas do apartamento no celular.
+Contrato do projeto (decisões, modelo, papéis, segurança): [`CLAUDE.md`](CLAUDE.md).
+Plano técnico: [`docs/plano.md`](docs/plano.md).
 
-First, run the development server:
+## Como rodar
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env            # edite: AUTH_SECRET longo e aleatório (>= 32 caracteres)
+npx prisma migrate dev          # cria/atualiza prisma/dev.db
+npx tsx scripts/importa-cadastro.ts            # simulação (dados/apartamentos.csv e moradores.csv)
+npx tsx scripts/importa-cadastro.ts --aplicar  # grava (52 apartamentos, 95 moradores)
+npx tsx scripts/cria-usuarios.ts               # felipe, achilles, portaria e 1 login por apto (apNNa)
+npm run dev                     # http://localhost:3001
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`.env`: `DATABASE_URL`, `AUTH_SECRET` e, ao publicar, `ORIGENS_PERMITIDAS`
+(domínio público, sem isso as Server Actions falham atrás do túnel).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Usuários e senhas
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `scripts/cria-usuarios.ts` cria os logins que faltam, cada um com **senha inicial
+  aleatória própria**, e grava todas em `dados/senhas-iniciais-AAAA-MM-DD.txt`
+  (texto puro, fora do git). **Entregue e apague o arquivo** — a pasta fica no OneDrive.
+  Todos entram com `precisaTrocarSenha`: no primeiro acesso o app obriga a escolher a
+  própria senha.
+- `--resetar` reemite a senha de quem ainda não trocou a sua; `--resetar=ap11a,portaria`
+  reemite logins específicos; `--resetar --todos` reemite todos (derruba quem já trocou).
+- Contas de teste (um por papel): `npx tsx scripts/cria-usuarios-teste.ts <senha>`
+  (`admin-teste`, `portaria-teste`, `morador-teste` do apto 11A) e `--remover` ao terminar.
 
-## Learn More
+## Validação
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npx tsc --noEmit
+npx prisma migrate status
+# com o site no ar e uma conta de teste:
+LOGIN_USUARIO=portaria-teste LOGIN_SENHA=... VIEWPORT=1180x820 npx tsx scripts/screenshot.ts tmp/shots /portaria
+LOGIN_USUARIO=morador-teste  LOGIN_SENHA=... VIEWPORT=390x844  npx tsx scripts/screenshot.ts tmp/shots /app
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Produção
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`npm run build && npm run start` (porta 3001). PWA: `scripts/gera-icones-pwa.ts`
+regenera `public/icons/`. Operação (túnel, backup, retenção de fotos): `CLAUDE.md` §9.

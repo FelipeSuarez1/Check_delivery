@@ -2,14 +2,27 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/*
+ * Direção "etiqueta de despacho" (mockup aprovado em 22/10/2026): papel claro,
+ * kraft como acento, código em mono. FONTE ÚNICA dos tokens do app (CLAUDE.md §6).
+ * Tema único claro: não há modo escuro (o bloco .dark do shadcn foi removido).
+ *
+ * Classes prontas (components): .eyebrow · .codigo · .chip(.chip-on) ·
+ * .stamp(.stamp-wait|.stamp-late|.stamp-done|.stamp-info).
+ * Cores no Tailwind: paper card ink ink-2 ink-3 line kraft kraft-ink kraft-soft
+ * ok ok-soft warn warn-soft info info-soft (ex.: bg-kraft-soft text-kraft-ink).
+ * Fontes: font-sans (IBM Plex Sans) · font-heading / font-display (Sora) ·
+ * font-mono (IBM Plex Mono). As variáveis vêm de next/font em app/layout.tsx.
+ */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: var(--font-texto);
+  --font-heading: var(--font-titulo);
+  --font-display: var(--font-titulo);
+  --font-mono: var(--font-codigo);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -46,85 +59,203 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* tokens do app */
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-kraft: var(--kraft);
+  --color-kraft-ink: var(--kraft-ink);
+  --color-kraft-soft: var(--kraft-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
+  /* paleta do mockup */
+  --paper: #faf8f3;
+  --card: #ffffff;
+  --ink: #1f1d1a;
+  --ink-2: #5c574f;
+  --ink-3: #8e887e;
+  --line: #e6e1d8;
+  --kraft: #c47a2c;
+  --kraft-ink: #7a4712;
+  --kraft-soft: #f6e9d8;
+  --ok: #2e7d4f;
+  --ok-soft: #e3f2e8;
+  --warn: #b54a1f;
+  --warn-soft: #fbe7de;
+  --info: #2f5fb3;
+  --info-soft: #e4ecf9;
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* o alias literal também existe fora do @theme (var(--font-mono) em CSS puro) */
+  --font-mono: var(--font-codigo);
+
+  /* semânticos do shadcn apontando para a paleta */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card-foreground: var(--ink);
+  --popover: var(--card);
+  --popover-foreground: var(--ink);
+  --primary: var(--kraft);
+  --primary-foreground: #ffffff;
+  --secondary: #f1ede4;
+  --secondary-foreground: var(--ink);
+  --muted: #f1ede4;
+  --muted-foreground: var(--ink-2);
+  --accent: #f1ede4;
+  --accent-foreground: var(--ink);
+  --destructive: var(--warn);
+  --border: var(--line);
+  /* borda de campo um pouco mais firme que a das divisórias */
+  --input: #d2cbbd;
+  --ring: var(--kraft);
+  --chart-1: #c47a2c;
+  --chart-2: #2e7d4f;
+  --chart-3: #2f5fb3;
+  --chart-4: #b54a1f;
+  --chart-5: #8e887e;
+  --radius: 0.625rem;
+  --sidebar: var(--card);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--kraft);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1ede4;
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--kraft);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
   html {
     @apply font-sans;
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-paper text-ink;
+    font-size: 15px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-titulo), system-ui, sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  /* sem o atraso de toque duplo e sem o clarão cinza no tablet/celular */
+  a,
+  button,
+  [role="button"],
+  label,
+  summary,
+  select,
+  input {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  ::selection {
+    background: var(--kraft-soft);
+  }
+}
+
+@layer components {
+  .eyebrow {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-3);
+    font-weight: 600;
+  }
+  /* código da encomenda: mono, espaçado */
+  .codigo {
+    font-family: var(--font-codigo), ui-monospace, Consolas, monospace;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .chip-on {
+    background: var(--ink);
+    color: #fff;
+    border-color: var(--ink);
+  }
+  /* carimbo de status */
+  .stamp {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 6px;
+    border: 1.5px solid currentColor;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+  }
+  .stamp-wait {
+    color: var(--kraft-ink);
+    background: var(--kraft-soft);
+  }
+  .stamp-late {
+    color: var(--warn);
+    background: var(--warn-soft);
+  }
+  .stamp-done {
+    color: var(--ok);
+    background: var(--ok-soft);
+  }
+  .stamp-info {
+    color: var(--info);
+    background: var(--info-soft);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Impressão (etiqueta, histórico): some a navegação, fica só o conteúdo. */
+@media print {
+  header,
+  nav,
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff !important;
   }
 }

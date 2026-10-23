@@ -9,6 +9,22 @@ import { normalizarPapel, rotaPermitida, ROTA_INICIAL, type PapelUsuario } from 
 /** Papéis: fonte única em lib/papeis.ts (edge-safe, importável aqui). */
 export type { PapelUsuario };
 
+/**
+ * Nome do cookie de sessão (usado pelo middleware e por lib/auth.ts). Diferente
+ * do site financeiro de propósito: em localhost os dois apps dividem o host e o
+ * cookie "sessao" de um sobrescrevia o do outro.
+ */
+export const COOKIE_SESSAO = "enc_sessao";
+
+/**
+ * O segredo que assina a sessão precisa ser longo e não pode ser o valor de
+ * exemplo do .env.example (público no repositório): quem o soubesse forjaria
+ * um token de admin. Middleware e lib/auth.ts recusam segredo fraco (fail closed).
+ */
+export function segredoSessaoValido(segredo: string | undefined): segredo is string {
+  return !!segredo && segredo.length >= 32 && !/troque-por/i.test(segredo);
+}
+
 export type SessaoPayload = {
   id: number;
   nome: string;
