@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Portaria · Aguardando</title>
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+  :root{
+    --paper:#FAF8F3;--card:#FFFFFF;--ink:#1F1D1A;--ink-2:#5C574F;--ink-3:#8E887E;--line:#E6E1D8;
+    --kraft:#C47A2C;--kraft-ink:#7A4712;--kraft-soft:#F6E9D8;
+    --ok:#2E7D4F;--ok-soft:#E3F2E8;--warn:#B54A1F;--warn-soft:#FBE7DE;--info:#2F5FB3;--info-soft:#E4ECF9;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none} a:hover{color:var(--kraft-ink)}
+  h1,h2,h3,.display{font-family:Sora,"IBM Plex Sans",system-ui,sans-serif;font-weight:600;margin:0;letter-spacing:-.01em;text-wrap:balance}
+  .mono{font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace;font-weight:600;letter-spacing:.06em}
+  .num{font-variant-numeric:tabular-nums}
+  .muted{color:var(--ink-2)} .faint{color:var(--ink-3)}
+  .eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-3);font-weight:600}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:48px;padding:0 18px;border-radius:10px;border:1px solid var(--line);background:var(--card);font-weight:600;font-size:15px;white-space:nowrap}
+  .btn svg{width:18px;height:18px;flex-shrink:0}
+  .btn.primary{background:var(--kraft);color:#fff;border-color:var(--kraft)}
+  .btn.ok{background:var(--ok);color:#fff;border-color:var(--ok)}
+  .btn.ghost{background:transparent}
+  .btn.big{height:60px;padding:0 24px;font-size:17px;border-radius:12px}
+  .btn.block{width:100%}
+  .chip{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:14px;font-weight:500}
+  .chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .chip svg{width:14px;height:14px}
+  .stamp{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;border:1.5px solid currentColor}
+  .stamp.wait{color:var(--kraft-ink);background:var(--kraft-soft)}
+  .stamp.late{color:var(--warn);background:var(--warn-soft)}
+  .stamp.done{color:var(--ok);background:var(--ok-soft)}
+  .stamp.info{color:var(--info);background:var(--info-soft)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px}
+  .photo{background:repeating-linear-gradient(135deg,#EFEAE0 0 10px,#E7E1D5 10px 20px);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--ink-3)}
+  .photo svg{width:34px;height:34px}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .field label{font-size:13px;font-weight:600;color:var(--ink-2)}
+  .input{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink-3);font-size:15px}
+  .input svg{width:18px;height:18px;flex-shrink:0}
+  .input.filled{color:var(--ink)}
+  .seg{display:inline-flex;border:1px solid var(--line);background:var(--card);padding:3px;border-radius:10px;gap:2px}
+  .seg span{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 16px;border-radius:8px;font-weight:600;color:var(--ink-2)}
+  .seg span.on{background:var(--ink);color:#fff}
+  table{border-collapse:collapse;width:100%;font-size:14px}
+  th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:600;padding:10px 12px;border-bottom:1px solid var(--line)}
+  td{padding:12px;border-bottom:1px solid var(--line);vertical-align:top}
+  .note{position:absolute;background:#1F1D1A;color:#fff;font-size:12px;font-weight:600;padding:6px 10px;border-radius:6px;box-shadow:0 6px 16px rgba(0,0,0,.18);white-space:nowrap;z-index:5}
+  .note.inl{position:static;white-space:normal;align-self:flex-start;box-shadow:none;font-weight:500}
+  .callout{border:1px dashed var(--line);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--ink-2);background:rgba(255,255,255,.6)}
+</style>
+</helmet>
+
+<div style="width:1180px;height:860px;background:var(--paper);display:flex;flex-direction:column;position:relative;overflow:hidden">
+  <header style="display:flex;align-items:center;gap:16px;height:72px;padding:0 24px;background:var(--card);border-bottom:1px solid var(--line)">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="display:flex;width:38px;height:38px;align-items:center;justify-content:center;border-radius:10px;background:var(--kraft);color:#fff"><span style="display:inline-flex;width:20px;height:20px;flex-shrink:0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span></div>
+      <div style="line-height:1.15"><div class="display" style="font-size:16px">Portaria</div><div class="faint" style="font-size:12px">Espaço Tangará</div></div>
+    </div>
+    <nav style="display:flex;gap:4px;margin-left:16px"><a href="#" style="display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 16px;border-radius:10px;font-weight:600;background:var(--ink);color:#fff">Aguardando<span class="num" style="display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 7px;border-radius:999px;font-size:12px;background:rgba(255,255,255,.2)">7</span></a><a href="#" style="display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 16px;border-radius:10px;font-weight:600;color:var(--ink-2)">Entregues hoje<span class="num" style="display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 7px;border-radius:999px;font-size:12px;background:var(--kraft-soft);color:var(--kraft-ink)">5</span></a><a href="#" style="display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 16px;border-radius:10px;font-weight:600;color:var(--ink-2)">Histórico</a></nav>
+    <span style="flex:1"></span>
+    <div class="chip" title="Porteiro de turno — gravado em cada encomenda"><span style="display:inline-flex;width:14px;height:14px;flex-shrink:0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span> Turno: <b>José</b> · desde 14:00 <span style="display:inline-flex;width:14px;height:14px;flex-shrink:0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></div>
+    <div class="chip"><span style="display:inline-flex;width:14px;height:14px;flex-shrink:0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span> <span class="num">qui 22/10 · 16:48</span></div>
+  </header>
+  <main style="flex:1;padding:20px 24px;display:flex;flex-direction:column;gap:16px;min-height:0">
+    
+  <div style="display:flex;align-items:center;gap:12px;position:relative">
+    <a href="#" class="btn primary big"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg> Registrar encomenda</a>
+    <a href="#" class="btn big"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg> Confirmar retirada</a>
+    <span style="flex:1"></span>
+    <div class="input" style="width:300px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> buscar por apto, nome ou código</div>
+  </div>
+  <div class="note inl">Duas ações sempre à mão (registrar · confirmar); o resto da tela é a lista do que está aguardando.</div>
+  <div style="display:flex;gap:10px;align-items:center">
+    <span class="chip on">Todas · 7</span><span class="chip">Torre A · 4</span><span class="chip">Torre B · 3</span><span class="chip" style="color:var(--warn);border-color:var(--warn)"><span style="display:inline-flex;width:14px;height:14px;flex-shrink:0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span> Há mais de 3 dias · 1</span>
+    <span style="flex:1"></span><span class="faint" style="font-size:13px">mais antigas primeiro</span>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:12px">
+    
+  <div class="card" style="gap:10px;padding:14px;border-color:var(--warn)">
+    <div style="display:flex;gap:12px;align-items:flex-start">
+      <div class="photo" style="width:72px;height:72px;flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg></div>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span class="mono" style="font-size:22px">QH28</span><span class="display" style="font-size:22px">181A</span></div>
+        <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Carol Fantoni</div>
+        <div class="muted" style="font-size:13px">Caixa grande · Amazon</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <span class="faint num" style="font-size:12px">sáb 18/10 11:05 · Marcos</span>
+      <span class="stamp late"><span style="display:inline-flex;width:12px;height:12px;flex-shrink:0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span> 4 dias</span>
+    </div>
+  </div>
+    
+  <div class="card" style="gap:10px;padding:14px;">
+    <div style="display:flex;gap:12px;align-items:flex-start">
+      <div class="photo" style="width:72px;height:72px;flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg></div>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span class="mono" style="font-size:22px">F4TN</span><span class="display" style="font-size:22px">51B</span></div>
+        <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Bruno Alvarenga</div>
+        <div class="muted" style="font-size:13px">Envelope · Correios</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <span class="faint num" style="font-size:12px">ter 21/10 09:12 · José</span>
+      <span class="stamp wait">Aguardando</span>
+    </div>
+  </div>
+    
+  <div class="card" style="gap:10px;padding:14px;">
+    <div style="display:flex;gap:12px;align-items:flex-start">
+      <div class="photo" style="width:72px;height:72px;flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg></div>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span class="mono" style="font-size:22px">K7M3</span><span class="display" style="font-size:22px">11A</span></div>
+        <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Felipe Suarez</div>
+        <div class="muted" style="font-size:13px">Caixa · Mercado Livre</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <span class="faint num" style="font-size:12px">hoje 14:32 · José</span>
+      <span class="stamp wait">Aguardando</span>
+    </div>
+  </div>
+    
+  <div class="card" style="gap:10px;padding:14px;">
+    <div style="display:flex;gap:12px;align-items:flex-start">
+      <div class="photo" style="width:72px;height:72px;flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg></div>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span class="mono" style="font-size:22px">WP6D</span><span class="display" style="font-size:22px">11A</span></div>
+        <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Flavia Suarez</div>
+        <div class="muted" style="font-size:13px">Sacola · iFood mercado</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <span class="faint num" style="font-size:12px">hoje 15:10 · José</span>
+      <span class="stamp wait">Aguardando</span>
+    </div>
+  </div>
+    
+  <div class="card" style="gap:10px;padding:14px;">
+    <div style="display:flex;gap:12px;align-items:flex-start">
+      <div class="photo" style="width:72px;height:72px;flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg></div>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span class="mono" style="font-size:22px">N2XR</span><span class="display" style="font-size:22px">101B</span></div>
+        <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Luiz Carlos Dutra</div>
+        <div class="muted" style="font-size:13px">Caixa · Shopee</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <span class="faint num" style="font-size:12px">hoje 15:41 · José</span>
+      <span class="stamp wait">Aguardando</span>
+    </div>
+  </div>
+    
+  <div class="card" style="gap:10px;padding:14px;">
+    <div style="display:flex;gap:12px;align-items:flex-start">
+      <div class="photo" style="width:72px;height:72px;flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg></div>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span class="mono" style="font-size:22px">ZT93</span><span class="display" style="font-size:22px">261B</span></div>
+        <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Cobertura · Marina Lopes</div>
+        <div class="muted" style="font-size:13px">Perecível · Floricultura</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <span class="faint num" style="font-size:12px">hoje 16:20 · José</span>
+      <span class="stamp wait">Aguardando</span>
+    </div>
+  </div>
+  </div>
+  <div class="callout">A lista vive na tela da portaria o tempo todo. Cada card = uma encomenda, com a foto tirada no registro, o código que o morador vai mostrar e quem recebeu. Vermelho = parada há mais de 3 dias (síndico vê o mesmo alerta).</div>
+
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1180,"height":860}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

@@ -1,0 +1,145 @@
+// Encomendas Tangará — fonte da verdade do modelo de dados (22/10/2026).
+// Sem dinheiro neste app. Datas em UTC. Nada se apaga: cancelar = status.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Apartamento {
+  id        Int         @id @default(autoincrement())
+  numero    String      @unique // "11A", "261B"
+  torre     String // "A" | "B"
+  andar     Int
+  ativo     Boolean     @default(true)
+  moradores Morador[]
+  usuarios  Usuario[]
+  encomendas Encomenda[]
+}
+
+model Morador {
+  id            Int         @id @default(autoincrement())
+  apartamentoId Int
+  apartamento   Apartamento @relation(fields: [apartamentoId], references: [id])
+  nome          String
+  telefone      String? // dígitos; DDI 55 assumido no link do WhatsApp
+  ativo         Boolean     @default(true)
+  criadoEm      DateTime    @default(now())
+  atualizadoEm  DateTime    @updatedAt
+  encomendasDestinadas Encomenda[] @relation("Destinatario")
+  encomendasRetiradas  Encomenda[] @relation("RetiradaPor")
+
+  @@index([apartamentoId])
+}
+
+model Usuario {
+  id                Int          @id @default(autoincrement())
+  login             String       @unique // "portaria", "ap11a", "felipe"
+  nome              String
+  senhaHash         String
+  senhaSalt         String
+  papel             String // 'admin' | 'portaria' | 'morador'
+  apartamentoId     Int? // só morador
+  apartamento       Apartamento? @relation(fields: [apartamentoId], references: [id])
+  ativo             Boolean      @default(true)
+  precisaTrocarSenha Boolean     @default(true)
+  criadoEm          DateTime     @default(now())
+  eventos           LogEvento[]
+  pushInscricoes    PushInscricao[]
+}
+
+model Porteiro {
+  id        Int       @id @default(autoincrement())
+  nome      String
+  ativo     Boolean   @default(true)
+  criadoEm  DateTime  @default(now())
+  turnos    Turno[]
+  recebidas Encomenda[] @relation("RecebidaPor")
+  entregues Encomenda[] @relation("EntreguePor")
+}
+
+/// Um turno aberto por vez (fim = null). O porteiro do turno aberto é gravado
+/// em cada registro/entrega enquanto não existe login individual (fase 4).
+model Turno {
+  id         Int       @id @default(autoincrement())
+  porteiroId Int
+  porteiro   Porteiro  @relation(fields: [porteiroId], references: [id])
+  inicio     DateTime  @default(now())
+  fim        DateTime?
+
+  @@index([fim])
+}
+
+model Encomenda {
+  id                    Int          @id @default(autoincrement())
+  codigo                String       @unique // 4 chars de ABCDEFGHJKLMNPQRSTUVWXYZ23456789
+  apartamentoId         Int
+  apartamento           Apartamento  @relation(fields: [apartamentoId], references: [id])
+  destinatarioMoradorId Int?
+  destinatarioMorador   Morador?     @relation("Destinatario", fields: [destinatarioMoradorId], references: [id])
+  destinatarioNome      String // nome como está na etiqueta (fallback "outro nome")
+  tipo                  String // 'caixa' | 'envelope' | 'sacola' | 'mercado' | 'perecivel'
+  transportadora        String?
+  observacao            String?
+  local                 String? // onde foi guardada (prateleira)
+  status                String       @default("aguardando") // 'aguardando' | 'entregue' | 'cancelada'
+  recebidaEm            DateTime     @default(now())
+  recebidaPorPorteiroId Int
+  recebidaPorPorteiro   Porteiro     @relation("RecebidaPor", fields: [recebidaPorPorteiroId], references: [id])
+  entregueEm            DateTime?
+  entreguePorPorteiroId Int?
+  entreguePorPorteiro   Porteiro?    @relation("EntreguePor", fields: [entreguePorPorteiroId], references: [id])
+  retiradaPorMoradorId  Int?
+  retiradaPorMorador    Morador?     @relation("RetiradaPor", fields: [retiradaPorMoradorId], references: [id])
+  retiradaTerceiroNome  String?
+  retiradaTerceiroDoc   String?
+  canceladaEm           DateTime?
+  canceladaMotivo       String?
+  avisoWhatsAppEm       DateTime?
+  fotos                 FotoEncomenda[]
+
+  @@index([status, recebidaEm])
+  @@index([apartamentoId, status])
+}
+
+model FotoEncomenda {
+  id          Int       @id @default(autoincrement())
+  encomendaId Int
+  encomenda   Encomenda @relation(fields: [encomendaId], references: [id])
+  arquivo     String // nome gerado em uploads/encomendas/
+  ordem       Int       @default(1)
+  criadaEm    DateTime  @default(now())
+  apagadaEm   DateTime? // retenção: arquivo removido do disco (registro fica)
+
+  @@index([encomendaId])
+}
+
+/// Fase 4 (Web Push) — já no schema para não precisar de migração depois.
+model PushInscricao {
+  id        Int      @id @default(autoincrement())
+  usuarioId Int
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id])
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  criadoEm  DateTime @default(now())
+}
+
+model LogEvento {
+  id          Int      @id @default(autoincrement())
+  usuarioId   Int?
+  usuario     Usuario? @relation(fields: [usuarioId], references: [id])
+  usuarioNome String
+  papel       String?
+  tipo        String // 'login' | 'logout' | 'encomenda' | 'retirada' | 'cancelamento' | 'turno' | 'usuario' | 'cadastro' | 'erro' | 'feedback'
+  rota        String
+  detalhe     String?
+  criadoEm    DateTime @default(now())
+
+  @@index([criadoEm])
+  @@index([tipo])
+}

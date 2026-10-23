@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Sistema · papéis e dados</title>
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+  :root{
+    --paper:#FAF8F3;--card:#FFFFFF;--ink:#1F1D1A;--ink-2:#5C574F;--ink-3:#8E887E;--line:#E6E1D8;
+    --kraft:#C47A2C;--kraft-ink:#7A4712;--kraft-soft:#F6E9D8;
+    --ok:#2E7D4F;--ok-soft:#E3F2E8;--warn:#B54A1F;--warn-soft:#FBE7DE;--info:#2F5FB3;--info-soft:#E4ECF9;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none} a:hover{color:var(--kraft-ink)}
+  h1,h2,h3,.display{font-family:Sora,"IBM Plex Sans",system-ui,sans-serif;font-weight:600;margin:0;letter-spacing:-.01em;text-wrap:balance}
+  .mono{font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace;font-weight:600;letter-spacing:.06em}
+  .num{font-variant-numeric:tabular-nums}
+  .muted{color:var(--ink-2)} .faint{color:var(--ink-3)}
+  .eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-3);font-weight:600}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:48px;padding:0 18px;border-radius:10px;border:1px solid var(--line);background:var(--card);font-weight:600;font-size:15px;white-space:nowrap}
+  .btn svg{width:18px;height:18px;flex-shrink:0}
+  .btn.primary{background:var(--kraft);color:#fff;border-color:var(--kraft)}
+  .btn.ok{background:var(--ok);color:#fff;border-color:var(--ok)}
+  .btn.ghost{background:transparent}
+  .btn.big{height:60px;padding:0 24px;font-size:17px;border-radius:12px}
+  .btn.block{width:100%}
+  .chip{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:14px;font-weight:500}
+  .chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .chip svg{width:14px;height:14px}
+  .stamp{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;border:1.5px solid currentColor}
+  .stamp.wait{color:var(--kraft-ink);background:var(--kraft-soft)}
+  .stamp.late{color:var(--warn);background:var(--warn-soft)}
+  .stamp.done{color:var(--ok);background:var(--ok-soft)}
+  .stamp.info{color:var(--info);background:var(--info-soft)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px}
+  .photo{background:repeating-linear-gradient(135deg,#EFEAE0 0 10px,#E7E1D5 10px 20px);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--ink-3)}
+  .photo svg{width:34px;height:34px}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .field label{font-size:13px;font-weight:600;color:var(--ink-2)}
+  .input{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink-3);font-size:15px}
+  .input svg{width:18px;height:18px;flex-shrink:0}
+  .input.filled{color:var(--ink)}
+  .seg{display:inline-flex;border:1px solid var(--line);background:var(--card);padding:3px;border-radius:10px;gap:2px}
+  .seg span{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 16px;border-radius:8px;font-weight:600;color:var(--ink-2)}
+  .seg span.on{background:var(--ink);color:#fff}
+  table{border-collapse:collapse;width:100%;font-size:14px}
+  th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:600;padding:10px 12px;border-bottom:1px solid var(--line)}
+  td{padding:12px;border-bottom:1px solid var(--line);vertical-align:top}
+  .note{position:absolute;background:#1F1D1A;color:#fff;font-size:12px;font-weight:600;padding:6px 10px;border-radius:6px;box-shadow:0 6px 16px rgba(0,0,0,.18);white-space:nowrap;z-index:5}
+  .note.inl{position:static;white-space:normal;align-self:flex-start;box-shadow:none;font-weight:500}
+  .callout{border:1px dashed var(--line);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--ink-2);background:rgba(255,255,255,.6)}
+</style>
+</helmet>
+
+<div style="width:1200px;background:var(--paper);padding:32px;display:flex;flex-direction:column;gap:22px">
+  <div><h1 style="font-size:26px">Quem faz o quê, e o que fica gravado</h1><p class="muted" style="margin:6px 0 0;max-width:80ch">App separado do site financeiro, com login próprio. Começa com um login da portaria + "porteiro de turno" escolhido na tela; quando cada porteiro tiver login, o turno some e o nome vem do login.</p></div>
+  <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:22px">
+    <div class="card" style="padding:0;overflow:hidden"><table>
+      <thead><tr><th>Ação</th><th>Portaria</th><th>Morador (login do apto)</th><th>Síndico / admin</th></tr></thead>
+      <tbody>
+        <tr><td>Registrar encomenda (foto, apto, destinatário, código)</td><td style="color:var(--ok);font-weight:700">✓</td><td>—</td><td style="color:var(--ok);font-weight:700">✓</td></tr>
+        <tr><td>Confirmar retirada (código + quem retirou)</td><td style="color:var(--ok);font-weight:700">✓</td><td>—</td><td style="color:var(--ok);font-weight:700">✓</td></tr>
+        <tr><td>Ver encomendas aguardando — de TODOS os aptos</td><td style="color:var(--ok);font-weight:700">✓</td><td>—</td><td style="color:var(--ok);font-weight:700">✓</td></tr>
+        <tr><td>Ver as próprias (do apto) + código + foto</td><td>—</td><td style="color:var(--ok);font-weight:700">✓</td><td style="color:var(--ok);font-weight:700">✓</td></tr>
+        <tr><td>Histórico por apartamento</td><td style="color:var(--ok);font-weight:700">✓</td><td style="color:var(--info);font-weight:700">só o seu</td><td style="color:var(--ok);font-weight:700">✓</td></tr>
+        <tr><td>Avisar no WhatsApp (mensagem pronta)</td><td style="color:var(--ok);font-weight:700">✓</td><td>—</td><td style="color:var(--ok);font-weight:700">✓</td></tr>
+        <tr><td>Corrigir / cancelar um registro</td><td style="color:var(--info);font-weight:700">só no turno</td><td>—</td><td style="color:var(--ok);font-weight:700">✓</td></tr>
+        <tr><td>Cadastrar moradores, porteiros, exportar, alertas de parada</td><td>—</td><td>—</td><td style="color:var(--ok);font-weight:700">✓</td></tr>
+      </tbody></table></div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card" style="gap:6px"><span class="eyebrow">Encomenda</span><div class="mono" style="font-size:12px;letter-spacing:0;line-height:1.7;font-weight:500">codigo <span class="faint">K7M3 — único, gerado</span><br>fotos[] <span class="faint">1 a 3, obrigatória</span><br>apartamento · destinatario (morador)<br>tipo · transportadora · observacao · local<br>recebidaEm · recebidaPor (porteiro)<br>status <span class="faint">aguardando | entregue | cancelada</span><br>entregueEm · entreguePor (porteiro)<br>retiradaPor <span class="faint">morador | terceiro{nome, doc}</span><br>avisoWhatsAppEm</div></div>
+      <div class="card" style="gap:6px"><span class="eyebrow">Cadastros</span><div class="mono" style="font-size:12px;letter-spacing:0;line-height:1.7;font-weight:500">Apartamento <span class="faint">11A … 261B (52)</span><br>Morador <span class="faint">nome · telefone · apto · ativo</span><br>Porteiro <span class="faint">nome · login (fase 2)</span><br>Turno <span class="faint">porteiro · início · fim (fase 1)</span><br>Usuario <span class="faint">login · papel: portaria | morador | admin</span></div></div>
+      <div class="card" style="gap:6px;border-color:var(--kraft)"><span class="eyebrow">Regras que valem desde o 1º dia</span><div style="font-size:13px;line-height:1.6">Código sem 0/O/1/I, nunca repete. Foto fora de pasta pública, só com login. Morador só enxerga o próprio apto. Nada é apagado: cancelar = status + motivo. Alerta de encomenda parada &gt; 3 dias (portaria e síndico).</div></div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":740}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>
