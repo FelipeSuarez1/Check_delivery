@@ -22,6 +22,11 @@ https://claude.ai/artifact/39HB2MNevfcbzGVjMPSZsF
   **terceiro** (nome obrigatório, documento opcional).
 - **Aviso**: o morador vê ao abrir o app + botão "Avisar no WhatsApp" que abre
   `wa.me` com mensagem pronta (envio manual pelo porteiro). Push = fase 4.
+- **Morador pode recusar WhatsApp** (LGPD, 23/10/2026): `Morador.avisoWhatsApp`
+  (padrão `true`; o admin liga/desliga em `/admin/moradores`). Destinatário que
+  recusou = sem aviso e **sem fallback** (a recusa é da pessoa: o telefone de outro
+  morador do apto não é usado); destinatário sem telefone ou "outro nome" = fallback
+  só entre quem aceita. A importação do CSV nunca mexe no campo.
 - **Todos os moradores do apartamento veem todas as encomendas do apartamento**
   (login é por apartamento: `ap11a`, `ap261b`…). Cada card diz para quem veio.
 - **Nada se apaga**: cancelar = status `cancelada` + motivo. Foto é apagada do
@@ -58,7 +63,8 @@ worker que cacheia SÓ assets estáticos, nunca página nem dado).
 `prisma/schema.prisma` é a fonte da verdade. Resumo:
 
 - `Apartamento` (numero "11A", torre "A"|"B", andar, ativo) · `Morador`
-  (apartamentoId, nome, telefone?, ativo) — importados do site.
+  (apartamentoId, nome, telefone?, avisoWhatsApp (default true; false = recusou o
+  aviso por WhatsApp), ativo) — importados do site (a importação não altera `avisoWhatsApp`).
 - `Usuario` (login único, senhaHash/senhaSalt scrypt, papel
   `admin`|`portaria`|`morador`, apartamentoId? p/ morador, ativo,
   precisaTrocarSenha).
@@ -103,13 +109,13 @@ Fonte única dos papéis/allowlist: `src/lib/papeis.ts`. Guardas em
 - `mensagemWhatsApp(encomenda): string` e `linkWhatsApp(telefone, mensagem): string` (DDI 55 assumido)
 
 `src/actions/encomendas.ts` (escrita, guarda `portaria|admin`):
-- `registrarEncomenda(formData)` → `{ ok, codigo?, id?, erro? }` (campos: apartamentoId, destinatarioMoradorId|destinatarioNome, tipo, transportadora?, observacao?, local?, fotos[] (1–3))
+- `registrarEncomenda(formData)` → `{ ok, codigo?, id?, erro?, linkWhatsApp, motivoSemWhatsApp? }` (campos: apartamentoId, destinatarioMoradorId|destinatarioNome, tipo, transportadora?, observacao?, local?, fotos[] (1–3)); `linkWhatsApp` é null quando não há aviso possível e `motivoSemWhatsApp` diz por quê (sem telefone ou "<nome> pediu para não receber avisos no WhatsApp")
 - `confirmarRetirada({ codigo, retiradaPorMoradorId? , terceiroNome?, terceiroDoc? })`
 - `cancelarEncomenda({ id, motivo })` — portaria só no turno em que foi registrada; admin sempre
-- `marcarAvisoWhatsApp({ id })` → `{ ok, link }`
+- `marcarAvisoWhatsApp({ id })` → `{ ok, link }` (destinatário que recusou: `{ ok:false, link:null, erro:"<nome> pediu para não receber avisos no WhatsApp" }`, sem gravar `avisoWhatsAppEm`)
 - `buscarEncomendaParaRetirada(codigo)` (leitura, guarda portaria|admin)
 
-Admin: `src/actions/admin-cadastros.ts` (moradores/porteiros) e `src/actions/admin-usuarios.ts` (usuários: criar/editar/redefinir senha/desativar/excluir/gerar logins faltantes — senha gerada aparece UMA vez); consultas em `src/lib/admin.ts`. Constantes sem Prisma (p/ client) em `src/lib/encomenda-constantes.ts`; regras de escrita em `src/lib/encomendas-escrita.ts` e `src/lib/turno.ts` (as actions só fazem guarda → zod → lib → log → revalidate).
+Admin: `src/actions/admin-cadastros.ts` (moradores/porteiros; `definirAvisoWhatsApp({ id, avisar })` liga/desliga o aviso do morador — log tipo `cadastro` "aviso WhatsApp ligado/desligado", nunca o telefone; `criarMorador`/`editarMorador` aceitam `avisoWhatsApp?`) e `src/actions/admin-usuarios.ts` (usuários: criar/editar/redefinir senha/desativar/excluir/gerar logins faltantes — senha gerada aparece UMA vez); consultas em `src/lib/admin.ts`. Constantes sem Prisma (p/ client) em `src/lib/encomenda-constantes.ts`; regras de escrita em `src/lib/encomendas-escrita.ts` e `src/lib/turno.ts` (as actions só fazem guarda → zod → lib → log → revalidate).
 
 `src/actions/turno.ts`: `iniciarTurno({ porteiroId })`, `encerrarTurno()`, `turnoAberto()`.
 `src/actions/conta.ts`: `trocarSenha({ atual, nova })` (qualquer papel; reemite cookie).
@@ -143,6 +149,8 @@ próprios em `src/components/`: `CodigoEncomenda` (mono grande), `StampStatus`
    `next.config.ts`; `serverActions.allowedOrigins` com o domínio antes de
    publicar. `.env`, `dev.db`, `uploads/`, `backups/` no `.gitignore`.
 8. Telefone do morador nunca aparece para outro morador.
+9. Todo link `wa.me` nasce de `prepararAviso` (`src/lib/encomendas.ts`), que respeita
+   `Morador.avisoWhatsApp`; novo ponto de aviso = chamar `prepararAviso`, nunca montar o link à mão.
 
 ## 8. Validação
 

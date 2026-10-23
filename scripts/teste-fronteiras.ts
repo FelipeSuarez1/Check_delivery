@@ -322,6 +322,7 @@ async function acoesPorHttp(sem: Semente, cookieDe: (a: Ator) => string | undefi
       { nome: "gerarLoginsFaltantes", pagina: "/admin/usuarios", args: [] },
       { nome: "criarMorador", pagina: "/admin/moradores", args: [{ apartamentoId: apto11.id, nome: "Intruso", telefone: null }] },
       { nome: "desativarMorador", pagina: "/admin/moradores", args: [{ id: mor11.id }] },
+      { nome: "definirAvisoWhatsApp", pagina: "/admin/moradores", args: [{ id: mor11.id, avisar: false }] },
       { nome: "criarPorteiro", pagina: "/admin/porteiros", args: [{ nome: "ZZFRONT-INTRUSO" }] },
       { nome: "renomearPorteiro", pagina: "/admin/porteiros", args: [{ id: porteiro.id, nome: "HACK" }] },
       { nome: "desativarPorteiro", pagina: "/admin/porteiros", args: [{ id: porteiro.id }] },

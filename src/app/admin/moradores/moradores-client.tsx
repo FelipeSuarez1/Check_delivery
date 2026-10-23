@@ -1,8 +1,14 @@
 "use client";
 
 import { useState, useTransition, type FormEvent } from "react";
-import { LoaderCircle, Pencil, Power, UserPlus } from "lucide-react";
-import { criarMorador, desativarMorador, editarMorador, reativarMorador } from "@/actions/admin-cadastros";
+import { Bell, BellOff, LoaderCircle, MessageCircle, MessageCircleOff, Pencil, Power, UserPlus } from "lucide-react";
+import {
+  criarMorador,
+  definirAvisoWhatsApp,
+  desativarMorador,
+  editarMorador,
+  reativarMorador,
+} from "@/actions/admin-cadastros";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,15 +40,36 @@ type Alvo =
 export function MoradoresClient({ secoes, opcoes }: { secoes: SecaoTorre[]; opcoes: OpcaoApartamento[] }) {
   const [alvo, setAlvo] = useState<Alvo | null>(null);
   const { aviso, mostrar, limpar } = useAvisoTransitorio();
+  // o interruptor de WhatsApp age direto na lista (sem diálogo): o erro, se houver, aparece no topo
+  const [erroAviso, setErroAviso] = useState<string | null>(null);
+  const [alternando, setAlternando] = useState<number | null>(null);
+  const [, iniciar] = useTransition();
 
   function concluido(texto: string, avisoAcao?: string) {
     setAlvo(null);
     mostrar(avisoAcao ? `${texto} (${avisoAcao})` : texto);
   }
 
+  function alternarAviso(m: MoradorAdmin) {
+    if (alternando !== null) return;
+    setErroAviso(null);
+    setAlternando(m.id);
+    const avisar = !m.avisoWhatsApp;
+    iniciar(async () => {
+      const r = await chamar(() => definirAvisoWhatsApp({ id: m.id, avisar }));
+      setAlternando(null);
+      if (!r.ok) {
+        setErroAviso(r.erro);
+        return;
+      }
+      mostrar(r.aviso ?? `Aviso por WhatsApp ${avisar ? "ligado" : "desligado"} para ${m.nome}.`);
+    });
+  }
+
   return (
     <div className="space-y-6">
       <FaixaAviso aviso={aviso} aoFechar={limpar} />
+      {erroAviso && <AvisoErro>{erroAviso}</AvisoErro>}
 
       {secoes.map((s) => (
         <section key={s.torre} aria-labelledby={`torre-${s.torre}`} className="space-y-3">
@@ -89,9 +116,40 @@ export function MoradoresClient({ secoes, opcoes }: { secoes: SecaoTorre[]; opco
                               ) : (
                                 <span className="font-semibold text-warn">sem telefone</span>
                               )}
+                              <span
+                                className={cn(
+                                  "inline-flex items-center gap-1",
+                                  m.avisoWhatsApp ? "text-ink-2" : "font-semibold text-kraft-ink"
+                                )}
+                              >
+                                {m.avisoWhatsApp ? (
+                                  <MessageCircle className="size-3.5" aria-hidden />
+                                ) : (
+                                  <MessageCircleOff className="size-3.5" aria-hidden />
+                                )}
+                                WhatsApp: {m.avisoWhatsApp ? "avisa" : "não avisar"}
+                              </span>
                               {!m.ativo && <Selo>Inativo</Selo>}
                             </p>
                           </div>
+                          <button
+                            type="button"
+                            className={cn(BTN_ICONE, !m.avisoWhatsApp && "text-kraft-ink hover:text-kraft-ink")}
+                            aria-label={
+                              m.avisoWhatsApp ? `Parar de avisar ${m.nome} no WhatsApp` : `Voltar a avisar ${m.nome} no WhatsApp`
+                            }
+                            title={m.avisoWhatsApp ? "Parar de avisar no WhatsApp" : "Voltar a avisar no WhatsApp"}
+                            disabled={alternando === m.id}
+                            onClick={() => alternarAviso(m)}
+                          >
+                            {alternando === m.id ? (
+                              <LoaderCircle className="size-4 animate-spin" aria-hidden />
+                            ) : m.avisoWhatsApp ? (
+                              <Bell className="size-4" aria-hidden />
+                            ) : (
+                              <BellOff className="size-4" aria-hidden />
+                            )}
+                          </button>
                           <button
                             type="button"
                             className={BTN_ICONE}
@@ -180,6 +238,7 @@ function MoradorDialog({
   const editando = alvo.tipo === "editar";
   const [nome, setNome] = useState(editando ? alvo.morador.nome : "");
   const [telefone, setTelefone] = useState(editando ? alvo.morador.telefoneCompleto : "");
+  const [avisoWhatsApp, setAvisoWhatsApp] = useState(editando ? alvo.morador.avisoWhatsApp : true);
   const [aptoId, setAptoId] = useState(alvo.aptoId);
   const [erro, setErro] = useState<string | null>(null);
   const [pendente, iniciar] = useTransition();
@@ -194,8 +253,8 @@ function MoradorDialog({
     iniciar(async () => {
       const r = await chamar(() =>
         editando
-          ? editarMorador({ id: alvo.morador.id, apartamentoId: aptoId, nome, telefone })
-          : criarMorador({ apartamentoId: aptoId, nome, telefone })
+          ? editarMorador({ id: alvo.morador.id, apartamentoId: aptoId, nome, telefone, avisoWhatsApp })
+          : criarMorador({ apartamentoId: aptoId, nome, telefone, avisoWhatsApp })
       );
       if (!r.ok) {
         setErro(r.erro);
@@ -256,6 +315,27 @@ function MoradorDialog({
               autoComplete="off"
             />
             <p className="text-xs text-ink-3">DDD + número. Sem telefone o aviso por WhatsApp não é gerado.</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label
+              htmlFor="morador-aviso-whatsapp"
+              className="flex min-h-11 cursor-pointer items-center gap-3 rounded-[10px] border border-line bg-card px-3 py-2"
+            >
+              <input
+                id="morador-aviso-whatsapp"
+                type="checkbox"
+                checked={avisoWhatsApp}
+                onChange={(e) => setAvisoWhatsApp(e.target.checked)}
+                aria-describedby="morador-aviso-whatsapp-dica"
+                className="size-5 shrink-0 cursor-pointer accent-kraft"
+              />
+              <span className="text-sm font-semibold">Avisar por WhatsApp quando chegar encomenda</span>
+            </label>
+            <p id="morador-aviso-whatsapp-dica" className="text-xs text-ink-3">
+              Desmarque se o morador pediu para não receber avisos no WhatsApp. Nesse caso nenhuma mensagem é gerada para
+              as encomendas dele, nem pelo telefone de outro morador.
+            </p>
           </div>
 
           <div className="space-y-1.5">

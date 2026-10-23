@@ -40,8 +40,10 @@ export type ResultadoRegistro =
       ok: true;
       id: number;
       codigo: string;
-      /** link pronto do WhatsApp, ou null se ninguém do apto tem telefone */
+      /** link pronto do WhatsApp, ou null (sem telefone no apto ou destinatário que recusou o WhatsApp) */
       linkWhatsApp: string | null;
+      /** por que não há link: só vem preenchido quando `linkWhatsApp` é null */
+      motivoSemWhatsApp?: string;
       apartamento: string;
       destinatarioNome: string;
       tipo: string;
@@ -186,9 +188,11 @@ export async function registrarEncomenda(formData: FormData): Promise<ResultadoR
   try {
     const r = await registrarEncomendaDominio({ ...parsed.data, fotos });
     let linkWhatsApp: string | null = null;
+    let motivoSemWhatsApp: string | undefined;
     try {
       const aviso = await prepararAviso(r.id);
-      linkWhatsApp = aviso.ok ? aviso.link : null;
+      if (aviso.ok) linkWhatsApp = aviso.link;
+      else motivoSemWhatsApp = aviso.erro;
     } catch (e) {
       console.error("registrarEncomenda: aviso WhatsApp falhou (registro mantido):", e);
     }
@@ -205,6 +209,7 @@ export async function registrarEncomenda(formData: FormData): Promise<ResultadoR
       id: r.id,
       codigo: r.codigo,
       linkWhatsApp,
+      ...(linkWhatsApp === null && motivoSemWhatsApp ? { motivoSemWhatsApp } : {}),
       apartamento: r.apartamento,
       destinatarioNome: r.destinatarioNome,
       tipo: r.tipo,
@@ -294,7 +299,10 @@ export async function cancelarEncomenda(entrada: { id: number; motivo: string })
 
 /**
  * Marca o aviso e devolve o link `wa.me` (telefone do destinatário; se ele não
- * tem, o do 1º morador do apto com telefone). Sem telefone: `link: null` + erro.
+ * tem — ou se é "outro nome" —, o do 1º morador do apto com telefone que NÃO
+ * recusou o WhatsApp). Sem telefone: `link: null` + erro. Destinatário que
+ * recusou: `link: null` + "<nome> pediu para não receber avisos no WhatsApp",
+ * sem fallback e sem gravar `avisoWhatsAppEm` (a guarda é daqui, não da tela).
  */
 export async function marcarAvisoWhatsApp(entrada: { id: number }): Promise<ResultadoAviso> {
   const g = await guarda();

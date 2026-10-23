@@ -4,7 +4,9 @@
  * stub e a sessao e um token REAL (HMAC) de usuarios de teste criados no banco.
  * Cobre: guarda de papel, zod sobre FormData/JSON, fluxo registrar -> avisar ->
  * retirar -> cancelar, turno, LogEvento, /fotos/[id] (200/404) e a renderizacao
- * SSR dos componentes. Apaga tudo ao final. Saida ASCII; exit 1 se falhar.
+ * SSR dos componentes. Inclui a recusa de aviso por WhatsApp (LGPD, 23/10/2026):
+ * definirAvisoWhatsApp (admin), registrar/marcarAviso sem link para quem recusou e as
+ * telas da portaria com o motivo. Apaga tudo ao final. Saida ASCII; exit 1 se falhar.
  *   npx tsx scripts/teste-actions.ts
  */
 import Module from "node:module";
@@ -283,6 +285,9 @@ async function fluxoRetiradaCancelamento(e: Ambiente, r: { id: number; codigo: s
   ok(!!logRet && (logRet.detalhe ?? "").includes("Rui Prado") && (logRet.detalhe ?? "").includes(r.codigo), "retirada gravou LogEvento");
   ok(temErro((await act.marcarAvisoWhatsApp({ id: r.id })) as never, "não está mais aguardando"), "aviso de encomenda entregue recusado");
 
+  await fluxoRecusaWhatsApp(e);
+  tokenAtual = tPort;
+
   console.log("--- cancelamento");
   const r2 = await registrar(formulario({ ...base, destinatarioMoradorId: undefined, destinatarioNome: "  Visita  Teste " }));
   if (!r2.ok) throw new Error(`registrar r2 falhou: ${r2.erro}`);
@@ -308,6 +313,136 @@ async function fluxoRetiradaCancelamento(e: Ambiente, r: { id: number; codigo: s
     { aguardando: r3.ok ? r3.codigo : "", entregue: r.codigo, cancelada: cancelada.codigo },
     { tPort, tAdmin, tMorA: e.tMorA }
   );
+}
+
+/** Renderiza um elemento (server component ja resolvido) para HTML, esperando tudo ficar pronto. */
+async function paraHtml(elemento: Parameters<typeof renderToPipeableStream>[0]): Promise<string> {
+  const saida = new PassThrough();
+  let html = "";
+  saida.on("data", (parte) => (html += parte));
+  await new Promise<void>((resolver, falhar) => {
+    const { pipe } = renderToPipeableStream(elemento, { onAllReady: () => pipe(saida), onError: falhar });
+    saida.on("end", () => resolver());
+  });
+  return html;
+}
+
+/**
+ * 23/10/2026 (LGPD): o morador pode recusar o aviso por WhatsApp. Cobre o admin (guarda, zod, log sem telefone,
+ * criar/editar com o campo) e a portaria (registrar e marcar aviso nunca devolvem link para quem recusou; o
+ * fallback so usa quem aceita), mais a renderizacao das telas da portaria com o motivo. Ao final o Ana volta a aceitar
+ * (o resto da bateria depende do link dela) e os moradores criados aqui saem.
+ */
+async function fluxoRecusaWhatsApp(e: Ambiente): Promise<void> {
+  const { prisma, act, aptoA, ana, rui, tPort, tAdmin, tMorA } = e;
+  const acCad = await import("../src/actions/admin-cadastros");
+  const registrar = (fd: FormData) => act.registrarEncomenda(fd);
+  const base = { apartamentoId: String(aptoA.id), tipo: "caixa" };
+  const MSG_ANA = "Ana Prado pediu para não receber avisos no WhatsApp";
+  const logCadastro = () => prisma.logEvento.findFirst({ where: { tipo: "cadastro", usuarioId: e.uAdmin.id }, orderBy: { id: "desc" } });
+  const aceita = async (id: number): Promise<boolean> => (await prisma.morador.findUniqueOrThrow({ where: { id } })).avisoWhatsApp;
+  console.log("--- recusa de aviso por WhatsApp (LGPD)");
+
+  // guarda de papel: so o admin liga/desliga
+  for (const [quem, token] of [["portaria", tPort], ["morador", tMorA], ["sem sessao", ""]] as const) {
+    tokenAtual = token;
+    const r = await acCad.definirAvisoWhatsApp({ id: ana.id, avisar: false });
+    ok(!r.ok && (quem === "sem sessao" ? temErro(r, "Sessão expirada") : temErro(r, "Só o administrador")), `${quem}: definirAvisoWhatsApp barrado`, JSON.stringify(r));
+  }
+  ok((await aceita(ana.id)) === true, "tentativas negadas nao gravaram nada");
+
+  tokenAtual = tAdmin;
+  ok(temErro(await acCad.definirAvisoWhatsApp({ id: "x" as never, avisar: false }), "Registro inválido"), "definirAvisoWhatsApp: zod recusa id invalido");
+  ok(temErro(await acCad.definirAvisoWhatsApp({ id: ana.id, avisar: "nao" as never }), "aceita aviso"), "definirAvisoWhatsApp: zod recusa 'avisar' que nao e boolean");
+  ok(temErro(await acCad.definirAvisoWhatsApp({ id: 99999999, avisar: false }), "Morador não encontrado"), "definirAvisoWhatsApp: morador inexistente");
+  revalidados.length = 0;
+  const off = await acCad.definirAvisoWhatsApp({ id: ana.id, avisar: false });
+  ok(off.ok === true && (await aceita(ana.id)) === false, "admin desliga o aviso da Ana: grava avisoWhatsApp=false");
+  const logOff = await logCadastro();
+  const detalheOff = logOff?.detalhe ?? "";
+  ok(
+    logOff?.rota === "/admin/moradores" && detalheOff.includes("aviso WhatsApp desligado") && detalheOff.includes("Ana Prado") && !/98765|4321/.test(detalheOff),
+    "LogEvento tipo cadastro: 'aviso WhatsApp desligado' e NENHUM telefone",
+    detalheOff
+  );
+  ok(revalidados.includes("/admin/moradores") && revalidados.includes("/portaria"), "revalida /admin/moradores e a portaria (chips e links)");
+  const dup = await acCad.definirAvisoWhatsApp({ id: ana.id, avisar: false });
+  ok(
+    dup.ok === true && /já estava desligado/.test(dup.aviso ?? "") && (await logCadastro())?.id === logOff?.id,
+    "desligar o que ja esta desligado: ok com aviso, sem novo log",
+    JSON.stringify(dup)
+  );
+
+  // portaria: destinatario que recusou nao recebe link, nem pelo registrar nem por marcarAvisoWhatsApp
+  tokenAtual = tPort;
+  const rAna = await registrar(formulario({ ...base, destinatarioMoradorId: String(ana.id) }));
+  if (!rAna.ok) throw new Error(`registrar para a Ana (recusou) falhou: ${rAna.erro}`);
+  ok(rAna.linkWhatsApp === null && rAna.motivoSemWhatsApp === MSG_ANA, "registrarEncomenda: destinatario que recusou -> linkWhatsApp null + motivoSemWhatsApp", JSON.stringify([rAna.linkWhatsApp, rAna.motivoSemWhatsApp]));
+  const avAna = await act.marcarAvisoWhatsApp({ id: rAna.id });
+  ok(!avAna.ok && avAna.link === null && avAna.erro === MSG_ANA, "marcarAvisoWhatsApp: devolve { ok:false, link:null, erro } e nunca o link", JSON.stringify(avAna));
+  ok((await prisma.encomenda.findUniqueOrThrow({ where: { id: rAna.id } })).avisoWhatsAppEm === null, "marcarAvisoWhatsApp recusado nao grava avisoWhatsAppEm");
+  // fallback: a Ana e a unica com telefone no apto e recusou -> o Rui (sem telefone) e "outro nome" tambem ficam sem link
+  const rRui = await registrar(formulario({ ...base, destinatarioMoradorId: String(rui.id) }));
+  const rVisita = await registrar(formulario({ ...base, destinatarioNome: "Visita Recusa" }));
+  for (const [quem, r] of [["destinatario sem telefone", rRui], ["'outro nome'", rVisita]] as const) {
+    ok(
+      r.ok && r.linkWhatsApp === null && (r.motivoSemWhatsApp ?? "").includes("Ana Prado, único morador do 993A com telefone cadastrado, pediu para não receber avisos no WhatsApp"),
+      `registrarEncomenda (${quem}): fallback nao usa o telefone de quem recusou`,
+      JSON.stringify(r.ok ? [r.linkWhatsApp, r.motivoSemWhatsApp] : r.erro)
+    );
+  }
+  const avRui = await act.marcarAvisoWhatsApp({ id: rRui.ok ? rRui.id : 0 });
+  ok(!avRui.ok && avRui.link === null, "marcarAvisoWhatsApp (fallback so com quem recusou): sem link");
+
+  // telas da portaria com o motivo (SSR)
+  const { default: PaginaDetalhe } = await import("../src/app/portaria/encomenda/[id]/page");
+  const html = await paraHtml(await PaginaDetalhe({ params: Promise.resolve({ id: String(rAna.id) }) }));
+  ok(
+    html.includes(MSG_ANA) && /<button[^>]*disabled[^>]*>(?:(?!<\/button>)[\s\S])*?Avisar no WhatsApp/.test(html) && !html.includes("wa.me") && html.includes("Sem aviso no WhatsApp"),
+    "detalhe da encomenda: botao do WhatsApp desabilitado, motivo na tela e na linha do tempo, nenhum link wa.me"
+  );
+  const { CodigoGerado } = await import("../src/app/portaria/registrar/codigo-gerado");
+  const gerado = renderToStaticMarkup(createElement(CodigoGerado, { registrada: { ...rAna, registradaEm: new Date().toISOString() }, onRegistrarOutra: () => undefined }));
+  ok(
+    gerado.includes(MSG_ANA) && /<button[^>]*disabled[^>]*>(?:(?!<\/button>)[\s\S])*?Avisar no WhatsApp/.test(gerado) && !gerado.includes("wa.me"),
+    "tela 'codigo gerado': botao desabilitado e o motivo da recusa"
+  );
+  const semMotivo = renderToStaticMarkup(createElement(CodigoGerado, { registrada: { ...rAna, motivoSemWhatsApp: undefined, registradaEm: new Date().toISOString() }, onRegistrarOutra: () => undefined }));
+  ok(semMotivo.includes("Nenhum morador do 993A tem telefone cadastrado"), "tela 'codigo gerado' sem motivo do servidor: texto antigo de 'sem telefone'");
+
+  // admin liga de novo: o link volta
+  tokenAtual = tAdmin;
+  const on = await acCad.definirAvisoWhatsApp({ id: ana.id, avisar: true });
+  ok(on.ok === true && (await aceita(ana.id)) === true, "admin liga o aviso da Ana de novo");
+  ok(((await logCadastro())?.detalhe ?? "").includes("aviso WhatsApp ligado"), "LogEvento: 'aviso WhatsApp ligado'");
+  tokenAtual = tPort;
+  const rOk = await registrar(formulario({ ...base, destinatarioMoradorId: String(ana.id) }));
+  ok(
+    rOk.ok && typeof rOk.linkWhatsApp === "string" && rOk.linkWhatsApp.startsWith("https://wa.me/5511987654321?text=") && !("motivoSemWhatsApp" in rOk),
+    "Ana aceitando: registrarEncomenda volta a devolver o link (sem motivoSemWhatsApp)"
+  );
+  const avOk = await act.marcarAvisoWhatsApp({ id: rOk.ok ? rOk.id : 0 });
+  ok(avOk.ok && avOk.link.includes("wa.me/5511987654321"), "Ana aceitando: marcarAvisoWhatsApp devolve o link");
+
+  // criar/editar morador com o campo
+  tokenAtual = tAdmin;
+  ok(temErro(await acCad.criarMorador({ apartamentoId: aptoA.id, nome: "Zeca Recusa", avisoWhatsApp: "sim" as never }), "aceita aviso"), "criarMorador: zod recusa avisoWhatsApp que nao e boolean");
+  const cria = await acCad.criarMorador({ apartamentoId: aptoA.id, nome: "Zeca Recusa", telefone: "(11) 95555-4444", avisoWhatsApp: false });
+  const zeca = await prisma.morador.findFirst({ where: { apartamentoId: aptoA.id, nome: "Zeca Recusa" } });
+  ok(cria.ok === true && zeca?.avisoWhatsApp === false && zeca.telefone === "11955554444", "criarMorador com avisoWhatsApp=false");
+  const detalheCria = (await logCadastro())?.detalhe ?? "";
+  ok(detalheCria.includes("aviso WhatsApp desligado") && !detalheCria.includes("95555"), "log de criacao cita o aviso desligado e nao o telefone", detalheCria);
+  const padrao = await acCad.criarMorador({ apartamentoId: aptoA.id, nome: "Zuleica Padrao" });
+  const zuleica = await prisma.morador.findFirst({ where: { apartamentoId: aptoA.id, nome: "Zuleica Padrao" } });
+  ok(padrao.ok === true && zuleica?.avisoWhatsApp === true, "criarMorador sem o campo: aceita WhatsApp (padrao)");
+  const edSem = await acCad.editarMorador({ id: zeca!.id, apartamentoId: aptoA.id, nome: "Zeca Recusa", telefone: "(11) 95555-4444" });
+  ok(edSem.ok === true && edSem.aviso === "Nada mudou" && (await aceita(zeca!.id)) === false, "editarMorador sem o campo mantem a escolha");
+  const edLiga = await acCad.editarMorador({ id: zeca!.id, apartamentoId: aptoA.id, nome: "Zeca Recusa", telefone: "(11) 95555-4444", avisoWhatsApp: true });
+  const detalheEd = (await logCadastro())?.detalhe ?? "";
+  ok(edLiga.ok === true && (await aceita(zeca!.id)) === true && detalheEd.includes("aviso WhatsApp ligado") && !detalheEd.includes("95555"), "editarMorador liga o aviso e loga sem telefone", detalheEd);
+  const edDesliga = await acCad.editarMorador({ id: zeca!.id, apartamentoId: aptoA.id, nome: "Zeca Recusa", telefone: "(11) 95555-4444", avisoWhatsApp: false });
+  ok(edDesliga.ok === true && (await aceita(zeca!.id)) === false && ((await logCadastro())?.detalhe ?? "").includes("aviso WhatsApp desligado"), "editarMorador desliga o aviso");
+  await prisma.morador.deleteMany({ where: { id: { in: [zeca!.id, zuleica!.id] } } });
 }
 
 async function renderizacao(codigo: string): Promise<void> {
@@ -349,6 +484,12 @@ async function renderizacao(codigo: string): Promise<void> {
   ok(cap.includes("Tirar foto da etiqueta") && cap.includes(`capture="environment"`) && cap.includes(`accept="image/*"`) && cap.includes("até 3 fotos"), "FotoCaptura: botao, input com capture e legenda");
   const sel = html(createElement(SeletorMoradores, { moradores: [{ id: 1, nome: "Ana" }, { id: 2, nome: "Rui" }], valor: { nome: "" }, onChange: () => undefined }));
   ok(sel.includes("Ana") && sel.includes("Outro nome") && sel.includes("<input"), "SeletorMoradores: chips e campo de nome no modo Outro");
+  ok(!sel.includes("não recebe WhatsApp"), "SeletorMoradores: sem marcador quando ninguem recusou");
+  const selRecusa = html(createElement(SeletorMoradores, { moradores: [{ id: 1, nome: "Ana", avisoWhatsApp: false }, { id: 2, nome: "Rui", avisoWhatsApp: true }], valor: { moradorId: 2 }, onChange: () => undefined }));
+  ok((selRecusa.match(/title="não recebe WhatsApp"/g) ?? []).length === 1 && selRecusa.includes("(não recebe WhatsApp)"), "SeletorMoradores: so o chip de quem recusou leva o marcador (title + texto para leitor de tela)");
+  ok(!selRecusa.includes("pediu para não receber"), "SeletorMoradores: com outro morador escolhido nao ha nota de recusa");
+  const selEscolhida = html(createElement(SeletorMoradores, { moradores: [{ id: 1, nome: "Ana", avisoWhatsApp: false }], valor: { moradorId: 1 }, onChange: () => undefined }));
+  ok(selEscolhida.includes("Ana pediu para não receber avisos no WhatsApp"), "SeletorMoradores: recusa escolhida mostra a nota 'esta encomenda nao gera o link'");
   ok(!html(createElement(SeletorMoradores, { moradores: [{ id: 1, nome: "Ana" }], valor: { moradorId: 1 }, onChange: () => undefined })).includes("<input"), "SeletorMoradores: sem campo quando um morador esta escolhido");
   ok(html(createElement(ChipsTipo, { valor: "perecivel", onChange: () => undefined })).includes("Perecível"), "ChipsTipo: rotulos");
   const ct = html(createElement(ChipsTransportadora, { valor: "Mercado Livre", onChange: () => undefined }));

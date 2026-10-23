@@ -49,3 +49,6 @@ next-env.d.ts
 /dados/*.csv
 # senhas iniciais geradas por scripts/cria-usuarios.ts (texto puro: NUNCA commitar)
 /dados/*.txt
+
+# config local do Claude Code (dev)
+/.claude/

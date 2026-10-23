@@ -21,7 +21,7 @@ import {
   type StatusEncomenda,
   type TipoEncomenda,
 } from "@/lib/encomenda-constantes";
-import { linkWhatsApp, mensagemWhatsApp } from "@/lib/whatsapp";
+import { linkWhatsApp, mensagemWhatsApp, telefoneParaWhatsApp } from "@/lib/whatsapp";
 import { correspondeBusca } from "@/lib/busca-encomenda";
 
 export {
@@ -92,7 +92,13 @@ export type EncomendaResumo = {
 export type EncomendaDetalhe = EncomendaResumo & { retiradaTerceiroDoc: string | null };
 
 export type ApartamentoInfo = { id: number; numero: string; torre: "A" | "B"; andar: number };
-export type MoradorInfo = { id: number; nome: string; temTelefone: boolean };
+export type MoradorInfo = {
+  id: number;
+  nome: string;
+  temTelefone: boolean;
+  /** false = o morador recusou avisos por WhatsApp (LGPD, 23/10/2026) */
+  avisoWhatsApp: boolean;
+};
 
 export type FiltroAguardando = { torre?: "A" | "B"; apartamentoId?: number; busca?: string };
 export type FiltroHistorico = {
@@ -367,21 +373,25 @@ export async function listarMoradoresDoApartamento(apartamentoId: number): Promi
   const ms = await prisma.morador.findMany({
     where: { apartamentoId, ativo: true },
     orderBy: [{ nome: "asc" }, { id: "asc" }],
-    select: { id: true, nome: true, telefone: true },
+    select: { id: true, nome: true, telefone: true, avisoWhatsApp: true },
   });
   return ms.map((m) => ({
     id: m.id,
     nome: m.nome,
     temTelefone: !!m.telefone && m.telefone.replace(/\D/g, "").length >= 10,
+    avisoWhatsApp: m.avisoWhatsApp,
   }));
 }
 
-export type ApartamentoComMoradores = ApartamentoInfo & { moradores: { id: number; nome: string }[] };
+export type ApartamentoComMoradores = ApartamentoInfo & {
+  moradores: { id: number; nome: string; avisoWhatsApp: boolean }[];
+};
 
 /**
- * Todos os aptos ativos com os moradores ativos (só id e nome — sem telefone).
- * A tela de registro carrega isso UMA vez e troca os chips "Para quem?" sem ir
- * ao servidor a cada apartamento digitado (52 aptos, ~100 nomes).
+ * Todos os aptos ativos com os moradores ativos (id, nome e se aceitam aviso por
+ * WhatsApp — sem telefone). A tela de registro carrega isso UMA vez e troca os
+ * chips "Para quem?" sem ir ao servidor a cada apartamento digitado (52 aptos,
+ * ~100 nomes); o marcador de quem recusou o WhatsApp sai do mesmo carregamento.
  */
 export async function listarApartamentosComMoradores(): Promise<ApartamentoComMoradores[]> {
   const aptos = await prisma.apartamento.findMany({
@@ -395,7 +405,7 @@ export async function listarApartamentosComMoradores(): Promise<ApartamentoComMo
       moradores: {
         where: { ativo: true },
         orderBy: [{ nome: "asc" }, { id: "asc" }],
-        select: { id: true, nome: true },
+        select: { id: true, nome: true, avisoWhatsApp: true },
       },
     },
   });
@@ -435,31 +445,54 @@ export async function buscarParaRetirada(codigo: string): Promise<BuscaParaRetir
 
 export type AvisoPreparado =
   | { ok: true; link: string; paraNome: string; codigo: string }
-  | { ok: false; link: null; erro: string };
+  | {
+      ok: false;
+      link: null;
+      erro: string;
+      /**
+       * recusou = a recusa (LGPD) impede o aviso; sem_telefone = ninguém do apto tem telefone
+       * utilizável; indisponivel = encomenda inexistente/inválida.
+       */
+      motivo: "recusou" | "sem_telefone" | "indisponivel";
+    };
 
 /**
- * Link do WhatsApp para avisar a encomenda: usa o telefone do destinatário; se
- * ele não tem, o do 1º morador ativo do apto que tenha. Não grava nada.
+ * Link do WhatsApp para avisar a encomenda (LGPD, 23/10/2026: a recusa é da PESSOA):
+ *  - destinatário cadastrado que recusou → NENHUM link, e ninguém cobre por ele;
+ *  - destinatário com telefone e que aceita → o telefone dele;
+ *  - destinatário sem telefone utilizável, ou "outro nome" (sem morador vinculado) →
+ *    o 1º morador ativo do apto que tenha telefone E não tenha recusado.
+ * Não grava nada.
  */
 export async function prepararAviso(encomendaId: number): Promise<AvisoPreparado> {
-  if (!idValido(encomendaId)) return { ok: false, link: null, erro: "Encomenda não encontrada" };
+  if (!idValido(encomendaId)) return { ok: false, link: null, erro: "Encomenda não encontrada", motivo: "indisponivel" };
   const e = await prisma.encomenda.findUnique({
     where: { id: encomendaId },
     include: {
       apartamento: { select: { numero: true } },
-      destinatarioMorador: { select: { id: true, nome: true, telefone: true } },
+      destinatarioMorador: { select: { id: true, nome: true, telefone: true, avisoWhatsApp: true } },
     },
   });
-  if (!e) return { ok: false, link: null, erro: "Encomenda não encontrada" };
+  if (!e) return { ok: false, link: null, erro: "Encomenda não encontrada", motivo: "indisponivel" };
 
-  const vizinhos = await prisma.morador.findMany({
-    where: { apartamentoId: e.apartamentoId, ativo: true, telefone: { not: null } },
+  const destinatario = e.destinatarioMorador;
+  if (destinatario && !destinatario.avisoWhatsApp) {
+    return {
+      ok: false,
+      link: null,
+      erro: `${destinatario.nome} pediu para não receber avisos no WhatsApp`,
+      motivo: "recusou",
+    };
+  }
+
+  const moradores = await prisma.morador.findMany({
+    where: { apartamentoId: e.apartamentoId, ativo: true },
     orderBy: { id: "asc" },
-    select: { id: true, nome: true, telefone: true },
+    select: { id: true, nome: true, telefone: true, avisoWhatsApp: true },
   });
   const candidatos = [
-    ...(e.destinatarioMorador ? [e.destinatarioMorador] : []),
-    ...vizinhos.filter((m) => m.id !== e.destinatarioMorador?.id),
+    ...(destinatario ? [destinatario] : []),
+    ...moradores.filter((m) => m.avisoWhatsApp && m.id !== destinatario?.id),
   ];
   const dados = {
     codigo: e.codigo,
@@ -473,9 +506,25 @@ export async function prepararAviso(encomendaId: number): Promise<AvisoPreparado
     const link = linkWhatsApp(m.telefone, mensagem);
     if (link) return { ok: true, link, paraNome: m.nome, codigo: e.codigo };
   }
+
+  // sem link: foi a recusa que fechou a porta (há telefone, mas só de quem recusou) ou não há telefone mesmo?
+  const recusaram = moradores.filter((m) => !m.avisoWhatsApp && telefoneParaWhatsApp(m.telefone) !== null);
+  if (recusaram.length > 0) {
+    const nomes = recusaram.map((m) => m.nome).join(", ");
+    return {
+      ok: false,
+      link: null,
+      erro:
+        recusaram.length === 1
+          ? `${nomes}, único morador do ${e.apartamento.numero} com telefone cadastrado, pediu para não receber avisos no WhatsApp - avise por outro meio`
+          : `Os moradores do ${e.apartamento.numero} com telefone cadastrado (${nomes}) pediram para não receber avisos no WhatsApp - avise por outro meio`,
+      motivo: "recusou",
+    };
+  }
   return {
     ok: false,
     link: null,
     erro: `Nenhum morador do ${e.apartamento.numero} tem telefone cadastrado - avise por outro meio`,
+    motivo: "sem_telefone",
   };
 }

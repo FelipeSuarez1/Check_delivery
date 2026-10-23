@@ -300,7 +300,10 @@ export async function cancelarEncomendaDominio(
 
 /* ------------------------------------------------------------------- aviso */
 
-/** Prepara o link do WhatsApp e, havendo telefone, grava `avisoWhatsAppEm`. */
+/**
+ * Prepara o link do WhatsApp e, havendo link, grava `avisoWhatsAppEm`. A decisão é tomada AGORA, contra o
+ * banco (`prepararAviso`): quem recusou o WhatsApp depois de a tela abrir continua sem link nem marca.
+ */
 export async function marcarAvisoWhatsAppDominio(id: number): Promise<AvisoPreparado> {
   const enc = await prisma.encomenda.findUnique({ where: { id }, select: { id: true, codigo: true, status: true } });
   if (!enc) throw new ErroDominio("Encomenda não encontrada");

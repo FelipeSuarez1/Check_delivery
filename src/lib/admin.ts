@@ -304,6 +304,8 @@ export type MoradorAdmin = {
   telefoneMascarado: string;
   /** "(11) 94300-6682" — só para o diálogo de edição ("" sem telefone) */
   telefoneCompleto: string;
+  /** false = o morador recusou avisos por WhatsApp (LGPD): nenhuma encomenda dele gera link wa.me */
+  avisoWhatsApp: boolean;
   ativo: boolean;
 };
 
@@ -324,6 +326,8 @@ export type ResumoCadastro = {
   moradoresInativos: number;
   /** ativos sem telefone — sem ele o aviso de WhatsApp não sai */
   semTelefone: number;
+  /** ativos que pediram para não receber aviso por WhatsApp */
+  recusaramWhatsApp: number;
   /** apartamentos ativos sem nenhum morador ativo */
   semMoradorAtivo: number;
 };
@@ -362,6 +366,7 @@ export async function listarApartamentosAdmin(
       nome: m.nome,
       telefoneMascarado: mascararTelefone(m.telefone),
       telefoneCompleto: formatarTelefone(m.telefone),
+      avisoWhatsApp: m.avisoWhatsApp,
       ativo: m.ativo,
     })),
   }));
@@ -372,6 +377,7 @@ export async function listarApartamentosAdmin(
     moradoresAtivos: aptosDb.reduce((n, a) => n + a.moradores.filter((m) => m.ativo).length, 0),
     moradoresInativos: aptosDb.reduce((n, a) => n + a.moradores.filter((m) => !m.ativo).length, 0),
     semTelefone: ativos.filter((m) => !m.telefone || m.telefone.replace(/\D/g, "").length < 10).length,
+    recusaramWhatsApp: ativos.filter((m) => !m.avisoWhatsApp).length,
     semMoradorAtivo: aptosDb.filter((a) => a.ativo && !a.moradores.some((m) => m.ativo)).length,
   };
 

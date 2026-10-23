@@ -94,6 +94,7 @@ export function CodigoGerado({
             type="button"
             disabled
             aria-disabled
+            title={r.motivoSemWhatsApp}
             className={classeBotao({ variante: "okLinha", grande: true, bloco: true })}
           >
             <MessageCircle aria-hidden /> Avisar no WhatsApp
@@ -112,8 +113,11 @@ export function CodigoGerado({
       {!r.linkWhatsApp && (
         <p className="flex items-start gap-2 rounded-[10px] border border-line bg-card px-3.5 py-3 text-[15px] text-ink-2">
           <Info className="mt-0.5 size-4 shrink-0 text-info" aria-hidden />
-          Nenhum morador do {r.apartamento} tem telefone cadastrado — avise por outro meio. O morador também vê a
-          encomenda ao abrir o app.
+          <span>
+            {/* o motivo vem do servidor: sem telefone no apto ou destinatário que pediu para não receber WhatsApp (LGPD) */}
+            {r.motivoSemWhatsApp ?? `Nenhum morador do ${r.apartamento} tem telefone cadastrado - avise por outro meio`}.
+            O morador também vê a encomenda ao abrir o app.
+          </span>
         </p>
       )}
       {erro && (

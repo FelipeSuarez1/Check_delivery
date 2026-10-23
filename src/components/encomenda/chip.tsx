@@ -13,12 +13,15 @@ export function Chip({
   disabled,
   children,
   className,
+  title,
 }: {
   selected?: boolean;
   onClick?: () => void;
   disabled?: boolean;
   children: ReactNode;
   className?: string;
+  /** dica ao passar o mouse (no tablet o aviso precisa estar também no conteúdo do chip) */
+  title?: string;
 }) {
   return (
     <button
@@ -26,6 +29,7 @@ export function Chip({
       aria-pressed={selected}
       disabled={disabled}
       onClick={onClick}
+      title={title}
       className={cn(
         "relative inline-flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors",
         "before:absolute before:inset-x-0 before:-inset-y-1 before:content-['']",

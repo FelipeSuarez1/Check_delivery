@@ -27,6 +27,9 @@ model Morador {
   apartamento   Apartamento @relation(fields: [apartamentoId], references: [id])
   nome          String
   telefone      String? // dígitos; DDI 55 assumido no link do WhatsApp
+  /// LGPD (23/10/2026): o morador pode recusar o aviso por WhatsApp. false = nenhum link wa.me é gerado
+  /// para encomendas destinadas a ele, e o telefone dele nunca serve de fallback para outro destinatário.
+  avisoWhatsApp Boolean     @default(true)
   ativo         Boolean     @default(true)
   criadoEm      DateTime    @default(now())
   atualizadoEm  DateTime    @updatedAt

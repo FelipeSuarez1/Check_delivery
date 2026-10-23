@@ -12,6 +12,8 @@
  *   - Apartamento: upsert por `numero` (atualiza torre/andar; nunca reativa nem desativa).
  *   - Morador: upsert por (apartamento, nome sem diferenca de caixa/espacos). Telefone so e
  *     preenchido se estiver vazio no banco — nunca sobrescreve um telefone ja cadastrado.
+ *   - `avisoWhatsApp` (recusa de aviso por WhatsApp, LGPD) NUNCA e lido nem gravado aqui: morador novo nasce
+ *     com o padrao do schema (aceita) e quem ja existe mantem a escolha feita no admin. Coberto por teste-dominio.
  *   - Idempotente: rodar de novo nao muda nada. Nada e apagado.
  *   - Qualquer inconsistencia nos CSVs aborta ANTES de gravar (nada fica pela metade).
  * Saida em ASCII (o console do Windows e cp1252).

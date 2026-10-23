@@ -205,7 +205,7 @@ const criados = {
 };
 
 async function contagens() {
-  const [usuarios, porteiros, moradores, encomendas, apartamentos, turnos, fotos] = await Promise.all([
+  const [usuarios, porteiros, moradores, encomendas, apartamentos, turnos, fotos, recusaramWhatsApp] = await Promise.all([
     prisma.usuario.count(),
     prisma.porteiro.count(),
     prisma.morador.count(),
@@ -213,8 +213,9 @@ async function contagens() {
     prisma.apartamento.count(),
     prisma.turno.count(),
     prisma.fotoEncomenda.count(),
+    prisma.morador.count({ where: { avisoWhatsApp: false } }),
   ]);
-  return { usuarios, porteiros, moradores, encomendas, apartamentos, turnos, fotos };
+  return { usuarios, porteiros, moradores, encomendas, apartamentos, turnos, fotos, recusaramWhatsApp };
 }
 
 function codigoLivre(): Promise<string> {
@@ -321,6 +322,7 @@ async function main() {
     ["editarMorador", () => acCad.editarMorador({ id: 1, apartamentoId: apto11A.id, nome: `Nao ${MARCA}` })],
     ["desativarMorador", () => acCad.desativarMorador({ id: 1 })],
     ["reativarMorador", () => acCad.reativarMorador({ id: 1 })],
+    ["definirAvisoWhatsApp", () => acCad.definirAvisoWhatsApp({ id: 1, avisar: false })],
     ["criarPorteiro", () => acCad.criarPorteiro({ nome: `Nao ${MARCA}` })],
     ["renomearPorteiro", () => acCad.renomearPorteiro({ id: 1, nome: `Nao ${MARCA}` })],
     ["desativarPorteiro", () => acCad.desativarPorteiro({ id: 1 })],
@@ -364,6 +366,10 @@ async function main() {
     ["criarMorador(id texto)", () => acCad.criarMorador({ apartamentoId: "1" as never, nome: `Lixo ${MARCA}` })],
     ["criarMorador(nome com controle)", () => acCad.criarMorador({ apartamentoId: apto11A.id, nome: `Lixo\u0007${MARCA}` })],
     ["editarMorador(id 0)", () => acCad.editarMorador({ id: 0, apartamentoId: apto11A.id, nome: "Lixo Lixo" })],
+    ["criarMorador(avisoWhatsApp texto)", () => acCad.criarMorador({ apartamentoId: apto11A.id, nome: `Lixo ${MARCA}`, avisoWhatsApp: "sim" as never })],
+    ["definirAvisoWhatsApp(id texto)", () => acCad.definirAvisoWhatsApp({ id: "x" as never, avisar: true })],
+    ["definirAvisoWhatsApp(avisar texto)", () => acCad.definirAvisoWhatsApp({ id: 1, avisar: "nao" as never })],
+    ["definirAvisoWhatsApp(morador inexistente)", () => acCad.definirAvisoWhatsApp({ id: 99_999_999, avisar: false })],
     ["criarPorteiro(vazio)", () => acCad.criarPorteiro({ nome: "   " })],
     ["criarPorteiro(longo)", () => acCad.criarPorteiro({ nome: "x".repeat(300) })],
     ["criarUsuario(login maiusculo/simbolo)", () => acUsu.criarUsuario({ login: "Ab!", nome: "Lixo", papel: "admin" })],
@@ -445,6 +451,21 @@ async function main() {
   conferir(ed2.ok === true && (await prisma.morador.findUniqueOrThrow({ where: { id: morador.id } })).apartamentoId === apto21A.id, "editarMorador muda o apartamento");
   const edSem = await acCad.editarMorador({ id: morador.id, apartamentoId: apto21A.id, nome: m2.nome, telefone: null });
   conferir(edSem.ok === true && (await prisma.morador.findUniqueOrThrow({ where: { id: morador.id } })).telefone === null, "editarMorador remove o telefone");
+  // recusa de aviso por WhatsApp (LGPD, 23/10/2026)
+  conferir(m2.avisoWhatsApp === true && (await prisma.morador.findFirstOrThrow({ where: { nome: `Sem Telefone ${MARCA}` } })).avisoWhatsApp === true, "morador criado sem o campo aceita WhatsApp (padrao)");
+  const wa1 = await acCad.definirAvisoWhatsApp({ id: morador.id, avisar: false });
+  conferir(wa1.ok === true && (await prisma.morador.findUniqueOrThrow({ where: { id: morador.id } })).avisoWhatsApp === false, "definirAvisoWhatsApp desliga (grava false)");
+  const wa2 = await acCad.definirAvisoWhatsApp({ id: morador.id, avisar: false });
+  conferir(wa2.ok === true && /já estava desligado/.test(wa2.aviso ?? ""), "desligar de novo: ok com aviso, sem erro", JSON.stringify(wa2));
+  const edMantem = await acCad.editarMorador({ id: morador.id, apartamentoId: apto21A.id, nome: m2.nome, telefone: "11 98888-7777" });
+  conferir(edMantem.ok === true && (await prisma.morador.findUniqueOrThrow({ where: { id: morador.id } })).avisoWhatsApp === false, "editarMorador sem o campo NAO reativa o WhatsApp de quem recusou");
+  const edLiga = await acCad.editarMorador({ id: morador.id, apartamentoId: apto21A.id, nome: m2.nome, telefone: "11 98888-7777", avisoWhatsApp: true });
+  conferir(edLiga.ok === true && (await prisma.morador.findUniqueOrThrow({ where: { id: morador.id } })).avisoWhatsApp === true, "editarMorador com avisoWhatsApp=true liga de novo");
+  const criaRecusa = await acCad.criarMorador({ apartamentoId: apto11A.id, nome: `Recusa ${MARCA}`, telefone: "11 97777-1111", avisoWhatsApp: false });
+  conferir(criaRecusa.ok === true && (await prisma.morador.findFirstOrThrow({ where: { nome: `Recusa ${MARCA}` } })).avisoWhatsApp === false, "criarMorador com avisoWhatsApp=false");
+  const lista = await (await import("../src/lib/admin")).listarApartamentosAdmin({ q: MARCA });
+  const linhaRecusa = lista.aptos.flatMap((a) => a.moradores).find((m) => m.nome === `Recusa ${MARCA}`);
+  conferir(linhaRecusa?.avisoWhatsApp === false && lista.resumo.recusaramWhatsApp >= 1, "listarApartamentosAdmin devolve avisoWhatsApp e o resumo conta quem recusou");
   const aptoTemp = await prisma.apartamento.create({ data: { numero: "991A", torre: "A", andar: 99, ativo: false } });
   criados.aptoIds.push(aptoTemp.id);
   const paraInativo = await acCad.editarMorador({ id: morador.id, apartamentoId: aptoTemp.id, nome: m2.nome });
@@ -726,22 +747,48 @@ async function main() {
     const erroTel = await enviarDialogo(page, "Salvar");
     conferir(!!erroTel && /telefone inválido/i.test(erroTel), "telefone invalido mostra erro no dialogo", erroTel ?? "");
     await dialogo(page).getByLabel(/Telefone/).fill("(11) 97766-5544");
+    const caixaWa = dialogo(page).getByLabel("Avisar por WhatsApp");
+    conferir(await caixaWa.isChecked(), "Novo morador: 'Avisar por WhatsApp quando chegar encomenda' vem marcado");
+    await caixaWa.uncheck();
+    await foto(page, "moradores-dialogo-whatsapp");
     conferir((await enviarDialogo(page, "Salvar")) === null, "Novo morador: salva e fecha");
     const mUi = await prisma.morador.findFirst({ where: { nome: nomeUiM } });
     conferir(mUi?.telefone === "11977665544" && mUi.apartamentoId === apto11A.id && mUi.ativo, "morador gravado (telefone so digitos, apto 11A)");
+    conferir(mUi?.avisoWhatsApp === false, "caixa desmarcada no dialogo grava avisoWhatsApp=false");
     // o aviso verde de sucesso tambem cita o nome: espera pelo TELEFONE MASCARADO, que so existe na lista ja atualizada
     await esperar(async () => (await page.locator("main").innerText()).includes("(11) 9****-5544"));
     const corpoMor2 = await page.locator("main").innerText();
     conferir(corpoMor2.includes(nomeUiM) && corpoMor2.includes("(11) 9****-5544") && !corpoMor2.includes("97766-5544"), "lista mostra o novo morador com telefone mascarado", corpoMor2.slice(0, 400));
+    conferir((await page.locator("li", { hasText: nomeUiM }).innerText()).includes("WhatsApp: não avisar"), "lista mostra 'WhatsApp: não avisar' para quem recusou");
     await page.getByRole("button", { name: `Editar ${nomeUiM}` }).click();
     conferir((await dialogo(page).getByLabel(/Telefone/).inputValue()) === "(11) 97766-5544", "Editar mostra o telefone COMPLETO");
+    conferir(!(await dialogo(page).getByLabel("Avisar por WhatsApp").isChecked()), "Editar: a caixa do WhatsApp reflete o cadastro (desmarcada)");
     await dialogo(page).getByLabel("Apartamento").selectOption({ label: "21A" });
     await dialogo(page).getByLabel("Nome").fill(`${nomeUiM} Jr`);
     conferir((await enviarDialogo(page, "Salvar")) === null, "Editar: salva e fecha");
     const mUi2 = await prisma.morador.findUnique({ where: { id: mUi!.id } });
     conferir(mUi2?.nome === `${nomeUiM} Jr` && mUi2.apartamentoId === apto21A.id, "edicao gravada (nome e apto 21A)");
+    conferir(mUi2?.avisoWhatsApp === false, "editar nome/apto nao reativa o WhatsApp de quem recusou");
     await carregar(page, `/admin/moradores?q=${encodeURIComponent(MARCA)}`);
     conferir((await page.locator("article[aria-label='Apartamento 21A']").count()) === 1, "busca pelo nome acha o apto onde ele esta agora");
+    // interruptor de WhatsApp direto na lista (sem dialogo)
+    conferir((await page.getByText(/\d+ (recusou|recusaram) WhatsApp/).count()) >= 1, "cabecalho conta quem recusou o WhatsApp");
+    await foto(page, "moradores-whatsapp-recusa");
+    await page.getByRole("button", { name: `Voltar a avisar ${nomeUiM} Jr no WhatsApp` }).click();
+    conferir(await esperar(async () => (await prisma.morador.findUnique({ where: { id: mUi!.id } }))?.avisoWhatsApp === true), "interruptor 'Voltar a avisar' liga o WhatsApp");
+    conferir(await esperar(async () => await page.getByRole("button", { name: `Parar de avisar ${nomeUiM} Jr no WhatsApp` }).isVisible()), "botao vira 'Parar de avisar'");
+    conferir(await esperar(async () => (await page.locator("li", { hasText: `${nomeUiM} Jr` }).innerText()).includes("WhatsApp: avisa")), "lista passa a mostrar 'WhatsApp: avisa'");
+    await page.getByRole("button", { name: `Parar de avisar ${nomeUiM} Jr no WhatsApp` }).click();
+    conferir(await esperar(async () => (await prisma.morador.findUnique({ where: { id: mUi!.id } }))?.avisoWhatsApp === false), "interruptor 'Parar de avisar' desliga o WhatsApp");
+    conferir(await esperar(async () => await page.getByRole("button", { name: `Voltar a avisar ${nomeUiM} Jr no WhatsApp` }).isVisible()), "botao volta a 'Voltar a avisar'");
+    const logsWa = await prisma.logEvento.findMany({ where: { tipo: "cadastro", detalhe: { contains: `${nomeUiM} Jr` } }, orderBy: { id: "asc" } });
+    conferir(
+      logsWa.some((l) => (l.detalhe ?? "").includes("aviso WhatsApp ligado")) &&
+        logsWa.some((l) => (l.detalhe ?? "").includes("aviso WhatsApp desligado")) &&
+        !logsWa.some((l) => /97766|5544/.test(l.detalhe ?? "")),
+      "interruptor grava LogEvento 'aviso WhatsApp ligado/desligado' sem telefone",
+      logsWa.map((l) => l.detalhe).join(" | ")
+    );
     await page.getByRole("button", { name: `Desativar ${nomeUiM} Jr` }).click();
     conferir((await enviarDialogo(page, "Desativar morador")) === null, "Desativar: confirma e fecha");
     conferir(await esperar(async () => (await prisma.morador.findUnique({ where: { id: mUi!.id } }))?.ativo === false), "morador desativado (nao apagado)");

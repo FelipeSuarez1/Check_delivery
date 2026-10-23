@@ -27,17 +27,17 @@ export function AcoesEncomendaClient({
   codigo,
   apartamento,
   linkWhatsApp,
-  semTelefone,
+  semWhatsApp,
   podeCancelar,
   jaAvisada,
 }: {
   id: number;
   codigo: string;
   apartamento: string;
-  /** link wa.me pronto, ou null quando ninguém do apto tem telefone */
+  /** link wa.me pronto, ou null (ninguém do apto tem telefone ou o destinatário recusou o WhatsApp) */
   linkWhatsApp: string | null;
-  /** explicação mostrada quando não há telefone */
-  semTelefone: string | null;
+  /** explicação mostrada quando não há link (sem telefone, ou "<nome> pediu para não receber avisos no WhatsApp") */
+  semWhatsApp: string | null;
   podeCancelar: boolean;
   jaAvisada: boolean;
 }) {
@@ -117,6 +117,7 @@ export function AcoesEncomendaClient({
             type="button"
             disabled
             aria-disabled
+            title={semWhatsApp ?? undefined}
             className={classeBotao({ variante: "okLinha", grande: true, bloco: true })}
           >
             <MessageCircle aria-hidden /> Avisar no WhatsApp
@@ -135,7 +136,7 @@ export function AcoesEncomendaClient({
       {!linkWhatsApp && (
         <p className="flex items-start gap-2 rounded-[10px] border border-line bg-card px-3 py-2.5 text-[15px] text-ink-2">
           <Info className="mt-0.5 size-4 shrink-0 text-info" aria-hidden />
-          {semTelefone ?? `Nenhum morador do ${apartamento} tem telefone cadastrado — avise por outro meio.`}
+          {semWhatsApp ?? `Nenhum morador do ${apartamento} tem telefone cadastrado - avise por outro meio`}.
         </p>
       )}
       {erroAviso && (

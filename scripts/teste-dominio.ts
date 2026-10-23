@@ -1,13 +1,19 @@
 /**
  * Teste de dominio AUTO-REVERSIVEL (22/10/2026) contra prisma/dev.db.
  * Chama as libs diretamente (as actions precisam de sessao/cookie). Cria seus
- * proprios registros (aptos 991A/992B, porteiros "ZZTESTE ...") e, ao final,
+ * proprios registros (aptos 991A/992B/995A, porteiros "ZZTESTE ...") e, ao final,
  * APAGA tudo - inclusive os arquivos de foto - e restaura o turno que estava
  * aberto antes. Saida ASCII; exit 1 se algo falhar.
+ * Inclui a bateria da recusa de aviso por WhatsApp (LGPD, 23/10/2026, apto 995A) e a prova de que
+ * scripts/importa-cadastro.ts nao mexe em Morador.avisoWhatsApp (roda sobre uma COPIA do banco em pasta temporaria).
  *   npx tsx scripts/teste-dominio.ts
  */
-import { readdir, stat, unlink } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { mkdir, mkdtemp, readdir, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { deflateSync } from "node:zlib";
+import { PrismaClient } from "@prisma/client";
 import QRCode from "qrcode";
 import { prisma } from "../src/lib/db";
 import { ALFABETO, codigoValido, gerarCodigoCandidato, normalizarCodigo, validarCodigo } from "../src/lib/codigo";
@@ -35,6 +41,8 @@ import { linkWhatsApp, mensagemWhatsApp, telefoneParaWhatsApp } from "../src/lib
 const MARCA = "ZZTESTE";
 const APTO_A = "991A";
 const APTO_B = "992B";
+/** apto da bateria de recusa de WhatsApp (LGPD, 23/10/2026) */
+const APTO_C = "995A";
 const DIA = 86_400_000;
 
 let total = 0;
@@ -98,7 +106,7 @@ function pngMinimo(): Buffer {
 const foto = (nome = "etiqueta.png") => new File([new Uint8Array(pngMinimo())], nome, { type: "image/png" });
 
 async function limparTestes(): Promise<void> {
-  const aptos = await prisma.apartamento.findMany({ where: { numero: { in: [APTO_A, APTO_B] } }, select: { id: true } });
+  const aptos = await prisma.apartamento.findMany({ where: { numero: { in: [APTO_A, APTO_B, APTO_C] } }, select: { id: true } });
   const aptoIds = aptos.map((a) => a.id);
   const fotos = await prisma.fotoEncomenda.findMany({ where: { encomenda: { apartamentoId: { in: aptoIds } } } });
   for (const f of fotos) {
@@ -111,6 +119,8 @@ async function limparTestes(): Promise<void> {
   await prisma.fotoEncomenda.deleteMany({ where: { encomenda: { apartamentoId: { in: aptoIds } } } });
   await prisma.encomenda.deleteMany({ where: { apartamentoId: { in: aptoIds } } });
   await prisma.morador.deleteMany({ where: { apartamentoId: { in: aptoIds } } });
+  // rede de seguranca do teste de importacao: se o DATABASE_URL da copia nao valesse, estes nomes cairiam aqui
+  await prisma.morador.deleteMany({ where: { nome: { startsWith: "ZZTESTE Import" } } });
   await prisma.apartamento.deleteMany({ where: { id: { in: aptoIds } } });
   const porteiros = await prisma.porteiro.findMany({ where: { nome: { startsWith: MARCA } }, select: { id: true } });
   const pIds = porteiros.map((p) => p.id);
@@ -292,6 +302,8 @@ async function testesDominio(): Promise<void> {
   await testesCancelamento(ctx, encs);
   await testesAviso(ctx, encs);
   await testesRetencaoHistorico(ctx, encs);
+  await testesRecusaWhatsApp();
+  await testesImportacaoNaoMexeNaRecusa();
 }
 
 /* ------------------------------------------------------------------ leituras */
@@ -341,6 +353,7 @@ async function testesLeituras(c: Ctx, { e1, e2, e3, e4 }: Encs): Promise<void> {
   ok((await enc.buscarApartamentoPorNumero(" 991a "))?.id === c.aptoA.id && (await enc.buscarApartamentoPorNumero("abc")) === null, "buscarApartamentoPorNumero");
   const ms = await enc.listarMoradoresDoApartamento(c.aptoA.id);
   ok(ms.length === 2 && ms.find((m) => m.id === c.joao.id)?.temTelefone === true && ms.find((m) => m.id === c.maria.id)?.temTelefone === false, "listarMoradoresDoApartamento: so ativos, flag de telefone");
+  ok(ms.every((m) => m.avisoWhatsApp === true), "listarMoradoresDoApartamento: moradores sem escolha aceitam WhatsApp (padrao)");
 }
 
 /* ------------------------------------------------------------------ retirada */
@@ -489,6 +502,198 @@ async function testesRetencaoHistorico(c: Ctx, { e1, e2, e3, e4 }: Encs): Promis
   ok(formatarDataHora(ordem[0].recebidaEm).length === 11, "formatarDataHora sobre ISO do resumo");
 }
 
+/* ------------------------------------------- recusa de aviso por WhatsApp (LGPD) */
+
+/**
+ * 23/10/2026: o morador pode recusar o aviso por WhatsApp (`Morador.avisoWhatsApp`). A recusa e da PESSOA:
+ * destinatario que recusou = nenhum link (nem fallback para outro morador); destinatario sem telefone ou
+ * "outro nome" = fallback so entre quem aceita. Cada passo muda o cadastro e consulta de novo (a decisao
+ * e tomada contra o banco no momento do aviso, nao na hora em que a tela abriu).
+ */
+async function testesRecusaWhatsApp(): Promise<void> {
+  console.log("--- recusa de aviso por WhatsApp (LGPD)");
+  const apto = await prisma.apartamento.create({ data: { numero: APTO_C, torre: "A", andar: 95 } });
+  // ids crescentes: Rita (recusa) vem ANTES de quem aceita, para o fallback "1o com telefone" errar se a regra falhar
+  const rita = await prisma.morador.create({
+    data: { apartamentoId: apto.id, nome: "Rita Recusa", telefone: "(11) 91111-1111", avisoWhatsApp: false },
+  });
+  const ana = await prisma.morador.create({ data: { apartamentoId: apto.id, nome: "Ana Aceita", telefone: "(11) 92222-2222" } });
+  const sergio = await prisma.morador.create({ data: { apartamentoId: apto.id, nome: "Sergio SemFone" } });
+  ok(ana.avisoWhatsApp === true && sergio.avisoWhatsApp === true && rita.avisoWhatsApp === false, "avisoWhatsApp: padrao true; false so quando gravado");
+
+  const reg = (d: { destinatarioMoradorId?: number; destinatarioNome?: string }) =>
+    registrarEncomendaDominio({ apartamentoId: apto.id, tipo: "caixa", transportadora: "Teste", fotos: [foto()], ...d });
+  const textoDe = (link: string) => decodeURIComponent(link.split("?text=")[1] ?? "");
+  const FONE_RITA = "5511911111111";
+  const FONE_ANA = "5511922222222";
+
+  // leituras da portaria carregam a flag (chip "nao recebe WhatsApp") sem telefone
+  const doApto = await enc.listarMoradoresDoApartamento(apto.id);
+  ok(
+    doApto.find((m) => m.id === rita.id)?.avisoWhatsApp === false &&
+      doApto.find((m) => m.id === ana.id)?.avisoWhatsApp === true &&
+      doApto.find((m) => m.id === sergio.id)?.avisoWhatsApp === true,
+    "listarMoradoresDoApartamento devolve avisoWhatsApp de cada morador"
+  );
+  const meu = (await enc.listarApartamentosComMoradores()).find((a) => a.numero === APTO_C);
+  const jsonMeu = JSON.stringify(meu);
+  ok(
+    !!meu && meu.moradores.find((m) => m.id === rita.id)?.avisoWhatsApp === false && meu.moradores.find((m) => m.id === ana.id)?.avisoWhatsApp === true,
+    "listarApartamentosComMoradores devolve avisoWhatsApp (marcador no chip da portaria)"
+  );
+  ok(!jsonMeu.includes("91111") && !jsonMeu.includes("92222") && !/telefone/i.test(jsonMeu), "...e continua sem expor telefone");
+
+  // 1) destinatario que recusou: sem link, sem cair para a Ana (que tem telefone e aceita)
+  const eRita = await reg({ destinatarioMoradorId: rita.id });
+  const avRita = await enc.prepararAviso(eRita.id);
+  ok(
+    !avRita.ok && avRita.link === null && avRita.motivo === "recusou" && avRita.erro === "Rita Recusa pediu para não receber avisos no WhatsApp",
+    "destinatario que recusou: sem link, motivo 'recusou' e texto exato (nao cai para outro morador)",
+    JSON.stringify(avRita)
+  );
+  const mRita = await marcarAvisoWhatsAppDominio(eRita.id);
+  ok(
+    !mRita.ok && mRita.link === null && mRita.erro === "Rita Recusa pediu para não receber avisos no WhatsApp" &&
+      (await prisma.encomenda.findUniqueOrThrow({ where: { id: eRita.id } })).avisoWhatsAppEm === null,
+    "marcarAviso do destinatario que recusou: sem link e sem gravar avisoWhatsAppEm"
+  );
+
+  // 2) destinatario sem telefone: fallback pula a Rita (recusou, id menor) e cai na Ana
+  const eSergio = await reg({ destinatarioMoradorId: sergio.id });
+  const avSergio = await enc.prepararAviso(eSergio.id);
+  ok(
+    avSergio.ok && avSergio.paraNome === "Ana Aceita" && avSergio.link.includes(`wa.me/${FONE_ANA}`) && !avSergio.link.includes(FONE_RITA),
+    "destinatario sem telefone: fallback so entre quem aceita (pula a Rita, cai na Ana)",
+    JSON.stringify(avSergio)
+  );
+  ok(avSergio.ok && textoDe(avSergio.link).startsWith("Olá, Ana! Chegou uma encomenda para Sergio"), "mensagem do fallback saúda a Ana e diz 'para Sergio'");
+
+  // 3) "outro nome" (sem morador vinculado): idem
+  const eVisita = await reg({ destinatarioNome: "Visita do Apto" });
+  const avVisita = await enc.prepararAviso(eVisita.id);
+  ok(
+    avVisita.ok && avVisita.paraNome === "Ana Aceita" && avVisita.link.includes(`wa.me/${FONE_ANA}`) && !avVisita.link.includes(FONE_RITA),
+    "'outro nome': fallback so entre quem aceita",
+    JSON.stringify(avVisita)
+  );
+  const mSergio = await marcarAvisoWhatsAppDominio(eSergio.id);
+  ok(
+    mSergio.ok && !!(await prisma.encomenda.findUniqueOrThrow({ where: { id: eSergio.id } })).avisoWhatsAppEm,
+    "quem aceita continua avisado: marcarAviso grava avisoWhatsAppEm"
+  );
+
+  // 4) a Ana tambem recusa: so ha telefone de quem recusou
+  await prisma.morador.update({ where: { id: ana.id }, data: { avisoWhatsApp: false } });
+  for (const [nome, e] of [["destinatario sem telefone", eSergio], ["'outro nome'", eVisita]] as const) {
+    const av = await enc.prepararAviso(e.id);
+    ok(
+      !av.ok && av.motivo === "recusou" && av.erro.includes("pediram para não receber avisos no WhatsApp") &&
+        av.erro.includes("Rita Recusa") && av.erro.includes("Ana Aceita") && av.erro.includes("avise por outro meio"),
+      `${nome}, todos com telefone recusaram: sem link, motivo 'recusou' e nomes no texto`,
+      JSON.stringify(av)
+    );
+  }
+
+  // 5) a Ana volta a aceitar mas fica sem telefone: so a Rita tem telefone e recusou (texto no singular)
+  await prisma.morador.update({ where: { id: ana.id }, data: { avisoWhatsApp: true, telefone: null } });
+  const avUnico = await enc.prepararAviso(eVisita.id);
+  ok(
+    !avUnico.ok && avUnico.motivo === "recusou" &&
+      avUnico.erro === "Rita Recusa, único morador do 995A com telefone cadastrado, pediu para não receber avisos no WhatsApp - avise por outro meio",
+    "unico morador com telefone recusou: texto no singular",
+    JSON.stringify(avUnico)
+  );
+
+  // 6) ninguem tem telefone: o motivo volta a ser 'sem_telefone' (texto de sempre); a recusa da Rita continua valendo
+  await prisma.morador.update({ where: { id: rita.id }, data: { telefone: null } });
+  const avNinguem = await enc.prepararAviso(eSergio.id);
+  ok(
+    !avNinguem.ok && avNinguem.motivo === "sem_telefone" && avNinguem.erro === "Nenhum morador do 995A tem telefone cadastrado - avise por outro meio",
+    "ninguem com telefone: motivo 'sem_telefone' e texto de sempre",
+    JSON.stringify(avNinguem)
+  );
+  const avRitaSemFone = await enc.prepararAviso(eRita.id);
+  ok(!avRitaSemFone.ok && avRitaSemFone.motivo === "recusou", "destinatario que recusou segue 'recusou' mesmo sem telefone");
+
+  // 7) a Rita volta a aceitar (e o telefone volta): o aviso dela reabre, "para voce"
+  await prisma.morador.update({ where: { id: rita.id }, data: { avisoWhatsApp: true, telefone: "(11) 91111-1111" } });
+  const avRita2 = await enc.prepararAviso(eRita.id);
+  ok(
+    avRita2.ok && avRita2.paraNome === "Rita Recusa" && avRita2.link.includes(`wa.me/${FONE_RITA}`) && textoDe(avRita2.link).includes("para você"),
+    "voltar a aceitar reabilita o aviso para o proprio destinatario",
+    JSON.stringify(avRita2)
+  );
+
+  // encomenda inexistente continua com motivo proprio
+  const avNada = await enc.prepararAviso(99999999);
+  ok(!avNada.ok && avNada.motivo === "indisponivel", "encomenda inexistente: motivo 'indisponivel'");
+}
+
+/**
+ * `scripts/importa-cadastro.ts --aplicar` roda sobre uma COPIA do banco (VACUUM INTO em pasta temporaria, via
+ * DATABASE_URL): preenche telefone de quem ja existe, cria quem e novo e NAO mexe em avisoWhatsApp.
+ */
+async function testesImportacaoNaoMexeNaRecusa(): Promise<void> {
+  console.log("--- importacao do cadastro nao mexe em avisoWhatsApp");
+  const raiz = process.cwd();
+  const tsx = path.join(raiz, "node_modules", "tsx", "dist", "cli.mjs");
+  const tmp = await mkdtemp(path.join(tmpdir(), "zz-importa-"));
+  const banco = path.join(tmp, "banco.db");
+  const urlBanco = "file:" + banco.replace(/\\/g, "/");
+  const nomeRecusou = "ZZTESTE Import Recusou";
+  const nomeAceita = "ZZTESTE Import Aceita";
+  const nomeNovo = "ZZTESTE Import Novo";
+  let copia: PrismaClient | null = null;
+  try {
+    await prisma.$executeRawUnsafe(`VACUUM INTO '${banco.replace(/\\/g, "/").replace(/'/g, "''")}'`);
+    copia = new PrismaClient({ datasources: { db: { url: urlBanco } } });
+    const apto = await copia.apartamento.upsert({
+      where: { numero: "11A" },
+      create: { numero: "11A", torre: "A", andar: 1 },
+      update: {},
+    });
+    await copia.morador.create({ data: { apartamentoId: apto.id, nome: nomeRecusou, avisoWhatsApp: false } });
+    await copia.morador.create({ data: { apartamentoId: apto.id, nome: nomeAceita } });
+    await mkdir(path.join(tmp, "dados"));
+    await writeFile(path.join(tmp, "dados", "apartamentos.csv"), "numero;torre;andar\r\n11A;A;1\r\n");
+    await writeFile(
+      path.join(tmp, "dados", "moradores.csv"),
+      `apartamento;nome;telefone\r\n11A;${nomeRecusou};11999990001\r\n11A;${nomeAceita};11999990002\r\n11A;${nomeNovo};11999990003\r\n`
+    );
+    const rodar = () =>
+      spawnSync(process.execPath, [tsx, path.join(raiz, "scripts", "importa-cadastro.ts"), "--aplicar"], {
+        cwd: tmp,
+        env: { ...process.env, DATABASE_URL: urlBanco },
+        encoding: "utf8",
+        timeout: 120_000,
+      });
+    const confere = async (rotulo: string) => {
+      const ms = await copia!.morador.findMany({ where: { apartamentoId: apto.id, nome: { in: [nomeRecusou, nomeAceita, nomeNovo] } } });
+      const por = (n: string) => ms.find((m) => m.nome === n);
+      ok(
+        por(nomeRecusou)?.telefone === "11999990001" && por(nomeRecusou)?.avisoWhatsApp === false,
+        `${rotulo}: morador que recusou ganha o telefone e CONTINUA recusando`,
+        JSON.stringify(por(nomeRecusou))
+      );
+      ok(por(nomeAceita)?.telefone === "11999990002" && por(nomeAceita)?.avisoWhatsApp === true, `${rotulo}: quem aceitava continua aceitando`);
+      ok(por(nomeNovo)?.telefone === "11999990003" && por(nomeNovo)?.avisoWhatsApp === true, `${rotulo}: morador novo nasce aceitando`);
+    };
+    const r1 = rodar();
+    ok(r1.status === 0, "importa-cadastro --aplicar roda sobre a copia do banco", ascii(`${r1.stdout}${r1.stderr}`).slice(0, 500));
+    await confere("importacao");
+    const r2 = rodar();
+    ok(r2.status === 0, "importa-cadastro roda de novo (idempotente)", ascii(`${r2.stdout}${r2.stderr}`).slice(0, 500));
+    await confere("2a importacao");
+    ok(
+      (await prisma.morador.count({ where: { nome: { startsWith: "ZZTESTE Import" } } })) === 0,
+      "a importacao de teste nao tocou no banco principal"
+    );
+  } finally {
+    if (copia) await copia.$disconnect();
+    await rm(tmp, { recursive: true, force: true });
+  }
+}
+
 /* ---------------------------------------------------------------------- main */
 
 async function main(): Promise<void> {
@@ -506,7 +711,7 @@ async function main(): Promise<void> {
   }
   console.log("--- limpeza");
   const sobras = {
-    aptos: await prisma.apartamento.count({ where: { numero: { in: [APTO_A, APTO_B] } } }),
+    aptos: await prisma.apartamento.count({ where: { numero: { in: [APTO_A, APTO_B, APTO_C] } } }),
     porteiros: await prisma.porteiro.count({ where: { nome: { startsWith: MARCA } } }),
     turnosNossos: await prisma.turno.count({ where: { porteiro: { nome: { startsWith: MARCA } } } }),
   };

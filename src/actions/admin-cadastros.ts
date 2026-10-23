@@ -32,10 +32,17 @@ const nomeSchema = z
   .refine((n) => !temControle(n), "O nome tem caracteres inválidos");
 
 const telefoneSchema = z.string().max(40, "Telefone longo demais").nullish();
+const avisoWhatsAppSchema = z.boolean({ error: "Informe se o morador aceita aviso por WhatsApp" });
 
-const criarMoradorSchema = z.object({ apartamentoId: idSchema, nome: nomeSchema, telefone: telefoneSchema });
+const criarMoradorSchema = z.object({
+  apartamentoId: idSchema,
+  nome: nomeSchema,
+  telefone: telefoneSchema,
+  avisoWhatsApp: avisoWhatsAppSchema.optional(),
+});
 const editarMoradorSchema = criarMoradorSchema.extend({ id: idSchema });
 const soIdSchema = z.object({ id: idSchema });
+const avisoWhatsAppMoradorSchema = z.object({ id: idSchema, avisar: avisoWhatsAppSchema });
 const criarPorteiroSchema = z.object({ nome: nomeSchema });
 const renomearPorteiroSchema = z.object({ id: idSchema, nome: nomeSchema });
 
@@ -56,7 +63,8 @@ function log(sessao: SessaoPayload, rota: string, detalhe: string): Promise<void
 
 /* ================================================================ moradores */
 
-type EntradaMorador = { apartamentoId: number; nome: string; telefone?: string | null };
+/** `avisoWhatsApp` omitido: na criação vale true (padrão); na edição mantém o que o morador já escolheu. */
+type EntradaMorador = { apartamentoId: number; nome: string; telefone?: string | null; avisoWhatsApp?: boolean };
 
 /** Apartamento ATIVO que vai receber o morador, ou a mensagem de erro. */
 async function apartamentoDestino(id: number): Promise<{ id: number; numero: string } | string> {
@@ -84,7 +92,7 @@ export async function criarMorador(entrada: EntradaMorador): Promise<ResultadoCa
   if ("erro" in g) return { ok: false, erro: g.erro };
   const parsed = criarMoradorSchema.safeParse(entrada);
   if (!parsed.success) return { ok: false, erro: primeiroErro(parsed.error) };
-  const { apartamentoId, nome, telefone } = parsed.data;
+  const { apartamentoId, nome, telefone, avisoWhatsApp } = parsed.data;
   const tel = normalizarTelefone(telefone);
   if (!tel.ok) return { ok: false, erro: tel.erro };
 
@@ -94,8 +102,15 @@ export async function criarMorador(entrada: EntradaMorador): Promise<ResultadoCa
     const repetido = await nomeRepetido(apto.id, nome);
     if (repetido) return { ok: false, erro: repetido };
 
-    const m = await prisma.morador.create({ data: { apartamentoId: apto.id, nome, telefone: tel.telefone } });
-    await log(g.sessao, ROTA_MORADORES, `Criou o morador "${nome}" no apto ${apto.numero}${tel.telefone ? " (com telefone)" : " (sem telefone)"}`);
+    const aviso = avisoWhatsApp ?? true;
+    const m = await prisma.morador.create({
+      data: { apartamentoId: apto.id, nome, telefone: tel.telefone, avisoWhatsApp: aviso },
+    });
+    await log(
+      g.sessao,
+      ROTA_MORADORES,
+      `Criou o morador "${nome}" no apto ${apto.numero}${tel.telefone ? " (com telefone)" : " (sem telefone)"}${aviso ? "" : "; aviso WhatsApp desligado"}`
+    );
     await aposEscrever([ROTA_MORADORES], true);
     return { ok: true, id: m.id };
   } catch (e) {
@@ -108,7 +123,7 @@ export async function editarMorador(entrada: EntradaMorador & { id: number }): P
   if ("erro" in g) return { ok: false, erro: g.erro };
   const parsed = editarMoradorSchema.safeParse(entrada);
   if (!parsed.success) return { ok: false, erro: primeiroErro(parsed.error) };
-  const { id, apartamentoId, nome, telefone } = parsed.data;
+  const { id, apartamentoId, nome, telefone, avisoWhatsApp } = parsed.data;
   const tel = normalizarTelefone(telefone);
   if (!tel.ok) return { ok: false, erro: tel.erro };
 
@@ -133,9 +148,14 @@ export async function editarMorador(entrada: EntradaMorador & { id: number }): P
     if ((tel.telefone ?? null) !== (atual.telefone ?? null)) {
       mudancas.push(tel.telefone ? (atual.telefone ? "telefone alterado" : "telefone informado") : "telefone removido");
     }
+    const mudouAviso = avisoWhatsApp !== undefined && avisoWhatsApp !== atual.avisoWhatsApp;
+    if (mudouAviso) mudancas.push(avisoWhatsApp ? "aviso WhatsApp ligado" : "aviso WhatsApp desligado");
     if (mudancas.length === 0) return { ok: true, aviso: "Nada mudou" };
 
-    await prisma.morador.update({ where: { id }, data: { nome, telefone: tel.telefone, apartamentoId } });
+    await prisma.morador.update({
+      where: { id },
+      data: { nome, telefone: tel.telefone, apartamentoId, ...(mudouAviso ? { avisoWhatsApp } : {}) },
+    });
     await log(g.sessao, ROTA_MORADORES, `Editou o morador "${atual.nome}" (apto ${atual.apartamento.numero}): ${mudancas.join("; ")}`);
     await aposEscrever([ROTA_MORADORES], true);
     return { ok: true };
@@ -175,6 +195,37 @@ export async function desativarMorador(entrada: { id: number }): Promise<Resulta
 
 export async function reativarMorador(entrada: { id: number }): Promise<ResultadoCadastro> {
   return definirAtivoMorador(entrada, true);
+}
+
+/**
+ * LGPD (23/10/2026): liga/desliga o aviso por WhatsApp do morador. Desligado = nenhuma encomenda
+ * destinada a ele gera link wa.me e o telefone dele não serve de fallback para outro destinatário.
+ * O log diz só "aviso WhatsApp ligado/desligado" — nunca o telefone.
+ */
+export async function definirAvisoWhatsApp(entrada: { id: number; avisar: boolean }): Promise<ResultadoCadastro> {
+  const g = await guardaAdmin();
+  if ("erro" in g) return { ok: false, erro: g.erro };
+  const parsed = avisoWhatsAppMoradorSchema.safeParse(entrada);
+  if (!parsed.success) return { ok: false, erro: primeiroErro(parsed.error) };
+  const { id, avisar } = parsed.data;
+
+  try {
+    const m = await prisma.morador.findUnique({ where: { id }, include: { apartamento: { select: { numero: true } } } });
+    if (!m) return { ok: false, erro: "Morador não encontrado" };
+    if (m.avisoWhatsApp === avisar) {
+      return { ok: true, aviso: avisar ? "O aviso por WhatsApp já estava ligado" : "O aviso por WhatsApp já estava desligado" };
+    }
+    await prisma.morador.update({ where: { id }, data: { avisoWhatsApp: avisar } });
+    await log(
+      g.sessao,
+      ROTA_MORADORES,
+      `Morador "${m.nome}" (apto ${m.apartamento.numero}): aviso WhatsApp ${avisar ? "ligado" : "desligado"}`
+    );
+    await aposEscrever([ROTA_MORADORES], true);
+    return { ok: true };
+  } catch (e) {
+    return falhaInesperada("definirAvisoWhatsApp", g.sessao, ROTA_MORADORES, e);
+  }
 }
 
 /* ================================================================ porteiros */

@@ -55,6 +55,11 @@ export default async function MoradoresPage({ searchParams }: { searchParams: Pr
         }
       >
         {resumo.semTelefone > 0 && <Selo tom="aviso">{resumo.semTelefone} sem telefone</Selo>}
+        {resumo.recusaramWhatsApp > 0 && (
+          <Selo tom="kraft">
+            {resumo.recusaramWhatsApp} {resumo.recusaramWhatsApp === 1 ? "recusou" : "recusaram"} WhatsApp
+          </Selo>
+        )}
         {resumo.semMoradorAtivo > 0 && <Selo tom="aviso">{resumo.semMoradorAtivo} apto(s) sem morador ativo</Selo>}
       </CabecalhoPagina>
 

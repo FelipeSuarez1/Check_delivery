@@ -81,7 +81,7 @@ export default async function DetalheEncomendaPage({ params }: { params: Promise
             </dl>
           </section>
 
-          <LinhaDoTempo e={e} />
+          <LinhaDoTempo e={e} semWhatsApp={aviso && !aviso.ok && aviso.motivo === "recusou" ? aviso.erro : null} />
 
           {aguardando && (
             <AcoesEncomendaClient
@@ -89,7 +89,7 @@ export default async function DetalheEncomendaPage({ params }: { params: Promise
               codigo={e.codigo}
               apartamento={e.apartamento}
               linkWhatsApp={aviso?.ok ? aviso.link : null}
-              semTelefone={aviso && !aviso.ok ? aviso.erro : null}
+              semWhatsApp={aviso && !aviso.ok ? aviso.erro : null}
               podeCancelar={podeCancelar}
               jaAvisada={!!e.avisoWhatsAppEm}
             />
@@ -102,7 +102,8 @@ export default async function DetalheEncomendaPage({ params }: { params: Promise
 
 type Passo = { chave: string; titulo: string; detalhe: string; cor: string; pendente?: boolean };
 
-function LinhaDoTempo({ e }: { e: EncomendaDetalhe }) {
+/** `semWhatsApp`: preenchido quando a recusa do morador (LGPD) impede o aviso — o passo "ainda não avisado" não se aplica. */
+function LinhaDoTempo({ e, semWhatsApp }: { e: EncomendaDetalhe; semWhatsApp: string | null }) {
   const passos: Passo[] = [
     {
       chave: "recebida",
@@ -118,6 +119,14 @@ function LinhaDoTempo({ e }: { e: EncomendaDetalhe }) {
       titulo: "Aviso aberto no WhatsApp",
       detalhe: formatarRelativo(e.avisoWhatsAppEm),
       cor: "bg-info",
+    });
+  } else if (e.status === "aguardando" && semWhatsApp) {
+    passos.push({
+      chave: "aviso",
+      titulo: "Sem aviso no WhatsApp",
+      detalhe: `${semWhatsApp}. Ele também vê a encomenda ao abrir o app.`,
+      cor: "",
+      pendente: true,
     });
   } else if (e.status === "aguardando") {
     passos.push({
